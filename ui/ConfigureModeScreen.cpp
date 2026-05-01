@@ -14,11 +14,11 @@
 
 static QString stateLabel(AppState s) {
     switch (s) {
-        case AppState::Stopped:  return "Stopped";
-        case AppState::Starting: return "Starting...";
-        case AppState::Running:  return "Running";
-        case AppState::Stopping: return "Stopping...";
-        case AppState::Error:    return "Error";
+        case AppState::Stopped:  return "DETENIDA";
+        case AppState::Starting: return "LANZANDO...";
+        case AppState::Running:  return "EJECUTÁNDOSE";
+        case AppState::Stopping: return "DETENIENDO...";
+        case AppState::Error:    return "ERROR";
     }
     return {};
 }
@@ -73,7 +73,7 @@ void ConfigureModeScreen::buildUI() {
 
     // App table
     m_table = new QTableWidget(0, 5, this);
-    m_table->setHorizontalHeaderLabels({"Application", "State", "Start", "Stop", "Restart"});
+    m_table->setHorizontalHeaderLabels({"Aplicación", "Estado", "Iniciar", "Parar", "Reiniciar"});
     m_table->horizontalHeader()->setSectionResizeMode(0, QHeaderView::Stretch);
     m_table->horizontalHeader()->setSectionResizeMode(1, QHeaderView::Fixed);
     m_table->setColumnWidth(1, 110);
@@ -113,7 +113,7 @@ void ConfigureModeScreen::buildUI() {
     // Stop All
     auto* actionsBar = new QHBoxLayout();
     actionsBar->addStretch();
-    m_stopAllBtn = new QPushButton("Stop All", this);
+    m_stopAllBtn = new QPushButton("Parar todo", this);
     m_stopAllBtn->setObjectName("DangerButton");
     m_stopAllBtn->setMinimumWidth(110);
     m_stopAllBtn->setFocusPolicy(Qt::NoFocus);
@@ -182,9 +182,9 @@ void ConfigureModeScreen::populateTable() {
         stateItem->setForeground(stateColor(AppState::Stopped));
         m_table->setItem(row, 1, stateItem);
 
-        auto* startBtn = new QPushButton("Start",   this);
-        auto* stopBtn  = new QPushButton("Stop",    this);
-        auto* rstBtn   = new QPushButton("Restart", this);
+        auto* startBtn = new QPushButton("Iniciar",   this);
+        auto* stopBtn  = new QPushButton("Parar",     this);
+        auto* rstBtn   = new QPushButton("Reiniciar", this);
         startBtn->setFocusPolicy(Qt::NoFocus);
         stopBtn->setFocusPolicy(Qt::NoFocus);
         rstBtn->setFocusPolicy(Qt::NoFocus);
