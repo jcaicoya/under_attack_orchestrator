@@ -1,3 +1,11 @@
 {
-  "releases": []
+  "releases": [
+    {
+      "version": 0,
+      "commit": "f43b780",
+      "date": "2026-05-01T21:05:35",
+      "message": "Add release packaging script and workflow",
+      "zip": "cybershow-orchestrator-v00.zip"
+    }
+  ]
 }
