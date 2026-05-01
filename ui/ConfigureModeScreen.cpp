@@ -14,10 +14,10 @@
 
 static QString stateLabel(AppState s) {
     switch (s) {
-        case AppState::Stopped:  return "DETENIDA";
-        case AppState::Starting: return "LANZANDO...";
+        case AppState::Stopped:  return "LISTA";
+        case AppState::Starting: return "EJECUTÁNDOSE";
         case AppState::Running:  return "EJECUTÁNDOSE";
-        case AppState::Stopping: return "DETENIENDO...";
+        case AppState::Stopping: return "EJECUTÁNDOSE";
         case AppState::Error:    return "ERROR";
     }
     return {};
@@ -72,14 +72,14 @@ void ConfigureModeScreen::buildUI() {
     root->addLayout(header);
 
     // App table
-    m_table = new QTableWidget(0, 5, this);
-    m_table->setHorizontalHeaderLabels({"Aplicación", "Estado", "Iniciar", "Parar", "Reiniciar"});
+    m_table = new QTableWidget(0, 4, this);
+    m_table->setHorizontalHeaderLabels({"Aplicación", "Estado", "Iniciar", "Parar"});
     m_table->horizontalHeader()->setSectionResizeMode(0, QHeaderView::Stretch);
     m_table->horizontalHeader()->setSectionResizeMode(1, QHeaderView::Fixed);
-    m_table->setColumnWidth(1, 110);
-    for (int c = 2; c <= 4; ++c) {
+    m_table->setColumnWidth(1, 120);
+    for (int c = 2; c <= 3; ++c) {
         m_table->horizontalHeader()->setSectionResizeMode(c, QHeaderView::Fixed);
-        m_table->setColumnWidth(c, 82);
+        m_table->setColumnWidth(c, 90);
     }
     m_table->setSelectionMode(QAbstractItemView::NoSelection);
     m_table->setEditTriggers(QAbstractItemView::NoEditTriggers);
@@ -182,23 +182,18 @@ void ConfigureModeScreen::populateTable() {
         stateItem->setForeground(stateColor(AppState::Stopped));
         m_table->setItem(row, 1, stateItem);
 
-        auto* startBtn = new QPushButton("Iniciar",   this);
-        auto* stopBtn  = new QPushButton("Parar",     this);
-        auto* rstBtn   = new QPushButton("Reiniciar", this);
+        auto* startBtn = new QPushButton("Iniciar", this);
+        auto* stopBtn  = new QPushButton("Parar",   this);
         startBtn->setFocusPolicy(Qt::NoFocus);
         stopBtn->setFocusPolicy(Qt::NoFocus);
-        rstBtn->setFocusPolicy(Qt::NoFocus);
         stopBtn->setEnabled(false);
-        rstBtn->setEnabled(false);
 
         const QString id = e.id;
-        connect(startBtn, &QPushButton::clicked, this, [this, id]() { m_manager->start(id);   });
-        connect(stopBtn,  &QPushButton::clicked, this, [this, id]() { m_manager->stop(id);    });
-        connect(rstBtn,   &QPushButton::clicked, this, [this, id]() { m_manager->restart(id); });
+        connect(startBtn, &QPushButton::clicked, this, [this, id]() { m_manager->start(id); });
+        connect(stopBtn,  &QPushButton::clicked, this, [this, id]() { m_manager->stop(id);  });
 
         m_table->setCellWidget(row, 2, startBtn);
         m_table->setCellWidget(row, 3, stopBtn);
-        m_table->setCellWidget(row, 4, rstBtn);
         m_table->setRowHeight(row, 38);
     }
 }
@@ -223,11 +218,11 @@ void ConfigureModeScreen::updateRow(const QString& id) {
 
     auto* startBtn = qobject_cast<QPushButton*>(m_table->cellWidget(row, 2));
     auto* stopBtn  = qobject_cast<QPushButton*>(m_table->cellWidget(row, 3));
-    auto* rstBtn   = qobject_cast<QPushButton*>(m_table->cellWidget(row, 4));
 
-    if (startBtn) startBtn->setEnabled(s == AppState::Stopped || s == AppState::Error);
-    if (stopBtn)  stopBtn->setEnabled(s == AppState::Running   || s == AppState::Starting);
-    if (rstBtn)   rstBtn->setEnabled(s == AppState::Running    || s == AppState::Error);
+    bool canStart = (s == AppState::Stopped || s == AppState::Error);
+    bool canStop  = (s == AppState::Starting || s == AppState::Running || s == AppState::Stopping);
+    if (startBtn) startBtn->setEnabled(canStart);
+    if (stopBtn)  stopBtn->setEnabled(canStop);
 }
 
 void ConfigureModeScreen::onStateChanged(const QString& id, AppState) {
