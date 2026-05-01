@@ -146,3 +146,22 @@ Las siguientes reglas del estándar común **no aplican** al orquestador, por di
 - [x] Arranca y muestra el selector de modo.
 - [x] Navegación teclado probada.
 - [x] Probado en portátil de desarrollo.
+
+---
+
+## 9. Packaging
+
+Script: `package-release.ps1`  
+Tracking file: `releases.json` (committed to git)  
+Output folder: `dist\` (gitignored)  
+Zip naming: `cybershow-orchestrator-vNN.zip` (zero-padded, incrementing)
+
+Workflow:
+- `.\package-release.ps1` — builds Release, zips, appends to `releases.json`, creates git tag
+- `.\package-release.ps1 -Force` — same but skips commit-change check
+- `git push --tags` — push tags to remote after packaging
+
+Zip contents: `orchestrator.exe` + Qt6Core/Gui/Widgets DLLs + `plugins/platforms/qwindows.dll`  
++ empty placeholder folders: `config/`, `apps/`, `media/`, `sounds/`, `lights/`, `logs/`, `tools/`
+
+Target machine requires Visual C++ Redistributable (install once).

@@ -2,6 +2,10 @@
 cmake-build-*/
 build/
 
+# Packaging
+dist/
+_staging/
+
 # Runtime-generated files (created by the app at startup)
 logs/
 config/apps.json
