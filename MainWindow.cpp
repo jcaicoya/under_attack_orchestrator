@@ -10,6 +10,8 @@
 #include <QFileInfo>
 #include <QDir>
 #include <QMessageBox>
+#include <QKeyEvent>
+#include <QApplication>
 
 static QString stateLabel(AppState s) {
     switch (s) {
@@ -74,11 +76,14 @@ void MainWindow::buildUI() {
         btn->setObjectName("NavButton");
         btn->setCheckable(true);
         btn->setMinimumWidth(110);
+        btn->installEventFilter(this);
         m_modeGroup->addButton(btn, i);
         header->addWidget(btn);
     }
     m_modeGroup->button(1)->setChecked(true);
-    connect(m_modeGroup, &QButtonGroup::idClicked, this, &MainWindow::onModeChanged);
+    connect(m_modeGroup, &QButtonGroup::idToggled, this, [this](int id, bool checked) {
+        if (checked) onModeChanged(id);
+    });
     root->addLayout(header);
 
     // App table
@@ -93,6 +98,7 @@ void MainWindow::buildUI() {
     }
     m_table->setSelectionMode(QAbstractItemView::NoSelection);
     m_table->setEditTriggers(QAbstractItemView::NoEditTriggers);
+    m_table->setFocusPolicy(Qt::NoFocus);
     m_table->verticalHeader()->setVisible(false);
     m_table->setShowGrid(false);
     m_table->setStyleSheet(QStringLiteral(R"QSS(
@@ -125,6 +131,7 @@ void MainWindow::buildUI() {
     m_stopAllBtn = new QPushButton("Stop All", this);
     m_stopAllBtn->setObjectName("DangerButton");
     m_stopAllBtn->setMinimumWidth(110);
+    m_stopAllBtn->setFocusPolicy(Qt::NoFocus);
     connect(m_stopAllBtn, &QPushButton::clicked, m_manager, &AppManager::stopAll);
     actionsBar->addWidget(m_stopAllBtn);
     root->addLayout(actionsBar);
@@ -193,6 +200,9 @@ void MainWindow::populateTable() {
         auto* startBtn = new QPushButton("Start",   this);
         auto* stopBtn  = new QPushButton("Stop",    this);
         auto* rstBtn   = new QPushButton("Restart", this);
+        startBtn->setFocusPolicy(Qt::NoFocus);
+        stopBtn->setFocusPolicy(Qt::NoFocus);
+        rstBtn->setFocusPolicy(Qt::NoFocus);
         stopBtn->setEnabled(false);
         rstBtn->setEnabled(false);
 
@@ -243,6 +253,24 @@ void MainWindow::onLogMessage(const QString& formatted) {
     m_logPanel->append(formatted);
     m_logPanel->verticalScrollBar()->setValue(
         m_logPanel->verticalScrollBar()->maximum());
+}
+
+bool MainWindow::eventFilter(QObject* obj, QEvent* event) {
+    if (event->type() == QEvent::KeyPress) {
+        auto* key = static_cast<QKeyEvent*>(event);
+        if (key->key() == Qt::Key_Tab || key->key() == Qt::Key_Backtab) {
+            const auto buttons = m_modeGroup->buttons();
+            for (int i = 0; i < buttons.size(); ++i) {
+                if (obj == buttons[i]) {
+                    Qt::Key arrow = (key->key() == Qt::Key_Tab) ? Qt::Key_Right : Qt::Key_Left;
+                    QKeyEvent arrowEvent(QEvent::KeyPress, arrow, Qt::NoModifier);
+                    QApplication::sendEvent(obj, &arrowEvent);
+                    return true;
+                }
+            }
+        }
+    }
+    return QMainWindow::eventFilter(obj, event);
 }
 
 void MainWindow::onModeChanged(int index) {

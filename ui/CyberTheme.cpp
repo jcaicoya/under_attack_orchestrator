@@ -151,6 +151,10 @@ QString globalStyleSheet() {
             border-color: #64748B;
         }
 
+        QPushButton:focus {
+            outline: none;
+        }
+
         QPushButton:disabled {
             color: #5F6B78;
             background-color: #151922;

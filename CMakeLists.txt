@@ -19,6 +19,7 @@ set(SOURCES
     ui/CyberTheme.cpp
     ui/CyberBackgroundWidget.cpp
     ui/CyberPanel.cpp
+    ui/ModeSelectorScreen.cpp
 )
 
 set(HEADERS
@@ -29,6 +30,7 @@ set(HEADERS
     ui/CyberTheme.h
     ui/CyberBackgroundWidget.h
     ui/CyberPanel.h
+    ui/ModeSelectorScreen.h
 )
 
 add_executable(orchestrator

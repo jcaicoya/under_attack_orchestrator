@@ -13,6 +13,9 @@ public:
     explicit MainWindow(const QString& packageRoot, QWidget* parent = nullptr);
     ~MainWindow() override = default;
 
+protected:
+    bool eventFilter(QObject* obj, QEvent* event) override;
+
 private slots:
     void onStateChanged(const QString& id, AppState state);
     void onLogMessage(const QString& formatted);

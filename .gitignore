@@ -12,3 +12,4 @@ config/apps.json
 # Windows
 Thumbs.db
 *.user
+next-steps.md
