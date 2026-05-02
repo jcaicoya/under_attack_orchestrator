@@ -73,16 +73,15 @@ Estados de proceso (en español):
 
 | Estado interno | Etiqueta visible | Color |
 |---|---|---|
-| Stopped | DETENIDA | gris `#5F6B78` |
-| Starting | LANZANDO | ámbar `#FFB000` |
+| Stopped | LISTA | gris `#5F6B78` |
+| Starting | EJECUTÁNDOSE | ámbar `#FFB000` |
 | Running | EJECUTÁNDOSE | verde `#00FF55` |
-| Stopping | DETENIENDO... | ámbar `#FFB000` |
+| Stopping | EJECUTÁNDOSE | ámbar `#FFB000` |
 | Error | ERROR | rojo `#FF3347` |
 
 Acciones de proceso (en español):
 - **Iniciar** — lanza la app con los argumentos del modo actual
 - **Parar** — termina el proceso
-- **Reiniciar** — para y vuelve a lanzar
 - **Parar todo** — para todas las apps
 
 Navegación:
@@ -149,7 +148,35 @@ Las siguientes reglas del estándar común **no aplican** al orquestador, por di
 
 ---
 
-## 9. Packaging
+## 9. Estructura del proyecto
+
+```
+orchestrator/
+├── src/
+│   ├── main.cpp
+│   ├── Logger.{h,cpp}
+│   ├── AppConfig.{h,cpp}
+│   ├── AppManager.{h,cpp}
+│   ├── MainWindow.{h,cpp}
+│   └── ui/
+│       ├── CyberTheme.{h,cpp}
+│       ├── CyberBackgroundWidget.{h,cpp}
+│       ├── CyberPanel.{h,cpp}
+│       ├── ModeSelectorScreen.{h,cpp}
+│       └── ConfigureModeScreen.{h,cpp}
+├── resources/
+│   └── apps_default.json          ← plantilla embebida (Qt resource)
+├── resources.qrc
+├── CMakeLists.txt
+├── dist/                          ← zips de release (gitignored)
+└── releases.json
+```
+
+En tiempo de ejecución, el orquestador copia `apps_default.json` a `config/apps.json` junto al `.exe` si no existe. Para editar la configuración en uso, editar ese archivo externo, no el recurso embebido.
+
+---
+
+## 10. Packaging
 
 Script: `package-release.ps1`  
 Tracking file: `releases.json` (committed to git)  
