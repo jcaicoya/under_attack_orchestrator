@@ -102,4 +102,19 @@ if (WIN32 AND NOT DEFINED CMAKE_TOOLCHAIN_FILE)
                 "${QT_INSTALL_PATH}/plugins/multimedia"
                 "$<TARGET_FILE_DIR:${PROJECT_NAME}>/plugins/multimedia/")
     endif ()
+
+    # FFmpeg DLLs required by the multimedia backend
+    file(GLOB FFMPEG_DLLS
+        "${QT_INSTALL_PATH}/bin/avcodec-*.dll"
+        "${QT_INSTALL_PATH}/bin/avformat-*.dll"
+        "${QT_INSTALL_PATH}/bin/avutil-*.dll"
+        "${QT_INSTALL_PATH}/bin/swresample-*.dll"
+        "${QT_INSTALL_PATH}/bin/swscale-*.dll"
+    )
+    foreach (FFMPEG_DLL ${FFMPEG_DLLS})
+        add_custom_command(TARGET ${PROJECT_NAME} POST_BUILD
+            COMMAND ${CMAKE_COMMAND} -E copy_if_different
+                "${FFMPEG_DLL}"
+                "$<TARGET_FILE_DIR:${PROJECT_NAME}>")
+    endforeach ()
 endif ()
