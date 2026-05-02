@@ -13,6 +13,12 @@ static QStringList toStringList(const QJsonArray& arr) {
     return out;
 }
 
+static QJsonArray toJsonArray(const QStringList& list) {
+    QJsonArray arr;
+    for (const auto& s : list) arr.append(s);
+    return arr;
+}
+
 bool AppConfig::loadFromFile(const QString& path) {
     QFile file(path);
     if (!file.open(QIODevice::ReadOnly | QIODevice::Text))
@@ -46,6 +52,40 @@ bool AppConfig::loadFromFile(const QString& path) {
         e.category               = o["category"].toString();
         m_apps.append(e);
     }
+    return true;
+}
+
+bool AppConfig::saveToFile(const QString& path) const {
+    QJsonArray appsArray;
+    for (const auto& e : m_apps) {
+        QJsonObject o;
+        o["id"]                     = e.id;
+        o["name"]                   = e.name;
+        o["description"]            = e.description;
+        o["enabled"]                = e.enabled;
+        o["executable"]             = e.executable;
+        o["workingDirectory"]       = e.workingDirectory;
+        o["arguments"]              = toJsonArray(e.arguments);
+        o["configurationArguments"] = toJsonArray(e.configurationArguments);
+        o["rehearsalArguments"]     = toJsonArray(e.rehearsalArguments);
+        o["liveArguments"]          = toJsonArray(e.liveArguments);
+        o["startupPolicy"]          = e.startupPolicy;
+        o["closePolicy"]            = e.closePolicy;
+        o["expectedWindowTitle"]    = e.expectedWindowTitle;
+        o["category"]               = e.category;
+        appsArray.append(o);
+    }
+
+    QJsonObject root;
+    root["version"] = m_version;
+    root["apps"]    = appsArray;
+
+    QDir().mkpath(QFileInfo(path).dir().absolutePath());
+    QFile file(path);
+    if (!file.open(QIODevice::WriteOnly | QIODevice::Text))
+        return false;
+
+    file.write(QJsonDocument(root).toJson(QJsonDocument::Indented));
     return true;
 }
 

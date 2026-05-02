@@ -23,7 +23,13 @@ struct AppEntry {
 class AppConfig {
 public:
     bool loadFromFile(const QString& path);
+    bool saveToFile(const QString& path) const;
+
     const QList<AppEntry>& apps() const { return m_apps; }
+    void addApp(const AppEntry& e)               { m_apps.append(e); }
+    void updateApp(int index, const AppEntry& e) { m_apps[index] = e; }
+    void removeApp(int index)                    { m_apps.removeAt(index); }
+
     static bool copyDefaultTo(const QString& destPath);
 
 private:
