@@ -11,28 +11,28 @@ set(CMAKE_PREFIX_PATH "C:/Qt/6.7.3/msvc2022_64")
 find_package(Qt6 COMPONENTS Core Gui Widgets REQUIRED)
 
 set(SOURCES
-    main.cpp
-    Logger.cpp
-    AppConfig.cpp
-    AppManager.cpp
-    MainWindow.cpp
-    ui/CyberTheme.cpp
-    ui/CyberBackgroundWidget.cpp
-    ui/CyberPanel.cpp
-    ui/ModeSelectorScreen.cpp
-    ui/ConfigureModeScreen.cpp
+    src/main.cpp
+    src/Logger.cpp
+    src/AppConfig.cpp
+    src/AppManager.cpp
+    src/MainWindow.cpp
+    src/ui/CyberTheme.cpp
+    src/ui/CyberBackgroundWidget.cpp
+    src/ui/CyberPanel.cpp
+    src/ui/ModeSelectorScreen.cpp
+    src/ui/ConfigureModeScreen.cpp
 )
 
 set(HEADERS
-    Logger.h
-    AppConfig.h
-    AppManager.h
-    MainWindow.h
-    ui/CyberTheme.h
-    ui/CyberBackgroundWidget.h
-    ui/CyberPanel.h
-    ui/ModeSelectorScreen.h
-    ui/ConfigureModeScreen.h
+    src/Logger.h
+    src/AppConfig.h
+    src/AppManager.h
+    src/MainWindow.h
+    src/ui/CyberTheme.h
+    src/ui/CyberBackgroundWidget.h
+    src/ui/CyberPanel.h
+    src/ui/ModeSelectorScreen.h
+    src/ui/ConfigureModeScreen.h
 )
 
 add_executable(orchestrator
@@ -42,8 +42,8 @@ add_executable(orchestrator
 )
 
 target_include_directories(orchestrator PRIVATE
-    ${CMAKE_CURRENT_SOURCE_DIR}
-    ${CMAKE_CURRENT_SOURCE_DIR}/ui
+    ${CMAKE_CURRENT_SOURCE_DIR}/src
+    ${CMAKE_CURRENT_SOURCE_DIR}/src/ui
 )
 
 target_link_libraries(orchestrator
