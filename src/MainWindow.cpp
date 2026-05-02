@@ -18,9 +18,13 @@ MainWindow::MainWindow(const QString& packageRoot, QWidget* parent)
     m_stack = new QStackedWidget(bg);
     layout->addWidget(m_stack);
 
+    m_stageWindow     = new StageWindow(this);
+
     m_selectorScreen  = new ModeSelectorScreen(m_stack);
     m_configureScreen = new ConfigureModeScreen(packageRoot, m_stack);
+    m_configureScreen->setStageWindow(m_stageWindow);
     m_rehearsalScreen = new RehearsalModeScreen(packageRoot, m_stack);
+    m_rehearsalScreen->setStageWindow(m_stageWindow);
 
     m_stack->addWidget(m_selectorScreen);   // index 0
     m_stack->addWidget(m_configureScreen);  // index 1

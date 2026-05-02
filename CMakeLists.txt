@@ -18,6 +18,7 @@ set(SOURCES
     src/MediaConfig.cpp
     src/MediaManager.cpp
     src/RundownConfig.cpp
+    src/StageWindow.cpp
     src/MainWindow.cpp
     src/ui/CyberTheme.cpp
     src/ui/CyberBackgroundWidget.cpp
@@ -34,6 +35,7 @@ set(HEADERS
     src/MediaConfig.h
     src/MediaManager.h
     src/RundownConfig.h
+    src/StageWindow.h
     src/MainWindow.h
     src/ui/CyberTheme.h
     src/ui/CyberBackgroundWidget.h

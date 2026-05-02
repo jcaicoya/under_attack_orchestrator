@@ -3,16 +3,21 @@
 #include <QTableWidget>
 #include <QTextEdit>
 #include <QPushButton>
+#include <QComboBox>
+#include <QLabel>
 #include "AppConfig.h"
 #include "AppManager.h"
 #include "MediaConfig.h"
 #include "MediaManager.h"
+#include "StageWindow.h"
 
 class ConfigureModeScreen : public QWidget {
     Q_OBJECT
 public:
     explicit ConfigureModeScreen(const QString& packageRoot, QWidget* parent = nullptr);
     ~ConfigureModeScreen() override = default;
+
+    void setStageWindow(StageWindow* stage);
 
 signals:
     void returnToSelector();
@@ -28,6 +33,13 @@ private slots:
 
 private:
     void buildUI();
+
+    // Stage
+    void populateScreenCombo();
+    void onActivateStage();
+    void updateStageStatus();
+    void loadStageConfig();
+    void saveStageConfig(int screenIndex);
 
     // Apps
     void loadConfig();
@@ -53,21 +65,27 @@ private:
 
     QString       m_packageRoot;
 
+    // Stage
+    StageWindow*  m_stageWindow       = nullptr;
+    QComboBox*    m_screenCombo       = nullptr;
+    QPushButton*  m_stageActivateBtn  = nullptr;
+    QLabel*       m_stageStatusLabel  = nullptr;
+
     QString       m_configPath;
     AppConfig     m_config;
-    AppManager*   m_manager      = nullptr;
+    AppManager*   m_manager           = nullptr;
 
     QString       m_mediaConfigPath;
     MediaConfig   m_mediaConfig;
-    MediaManager* m_mediaManager = nullptr;
+    MediaManager* m_mediaManager      = nullptr;
 
-    QTableWidget* m_table            = nullptr;
-    QPushButton*  m_addBtn           = nullptr;
-    QPushButton*  m_stopAllBtn       = nullptr;
+    QTableWidget* m_table             = nullptr;
+    QPushButton*  m_addBtn            = nullptr;
+    QPushButton*  m_stopAllBtn        = nullptr;
 
-    QTableWidget* m_mediaTable       = nullptr;
-    QPushButton*  m_addMediaBtn      = nullptr;
-    QPushButton*  m_stopAllMediaBtn  = nullptr;
+    QTableWidget* m_mediaTable        = nullptr;
+    QPushButton*  m_addMediaBtn       = nullptr;
+    QPushButton*  m_stopAllMediaBtn   = nullptr;
 
-    QTextEdit*    m_logPanel         = nullptr;
+    QTextEdit*    m_logPanel          = nullptr;
 };

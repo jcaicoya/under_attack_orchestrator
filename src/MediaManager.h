@@ -16,6 +16,8 @@ public:
     ~MediaManager() override;
 
     void loadMedia(const QList<MediaEntry>& items);
+    void setStageOutput(QVideoWidget* widget);
+
     MediaState state(const QString& id) const;
     void play(const QString& id);
     void stop(const QString& id);
@@ -37,6 +39,7 @@ private:
         QVideoWidget* videoWidget = nullptr; // non-null only for video entries
     };
 
+    QVideoWidget*               m_stageOutput = nullptr;
     QList<MediaEntry>           m_entries;
     QMap<QString, MediaRuntime> m_runtimes;
 };

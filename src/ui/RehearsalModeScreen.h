@@ -3,17 +3,21 @@
 #include <QTableWidget>
 #include <QTextEdit>
 #include <QPushButton>
+#include <QLabel>
 #include "AppConfig.h"
 #include "AppManager.h"
 #include "MediaConfig.h"
 #include "MediaManager.h"
 #include "RundownConfig.h"
+#include "StageWindow.h"
 
 class RehearsalModeScreen : public QWidget {
     Q_OBJECT
 public:
     explicit RehearsalModeScreen(const QString& packageRoot, QWidget* parent = nullptr);
     ~RehearsalModeScreen() override = default;
+
+    void setStageWindow(StageWindow* stage);
 
 signals:
     void returnToSelector();
@@ -33,6 +37,7 @@ private:
     void populateTable();
     void updateRow(int row);
     int  rowForRef(const QString& type, const QString& id) const;
+    void updateStageControls();
 
     const AppEntry*   appEntryForId(const QString& id) const;
     const MediaEntry* mediaEntryForId(const QString& id) const;
@@ -46,6 +51,12 @@ private:
 
     AppManager*    m_appManager   = nullptr;
     MediaManager*  m_mediaManager = nullptr;
+
+    // Stage
+    StageWindow*   m_stageWindow      = nullptr;
+    QPushButton*   m_stageBlackBtn    = nullptr;
+    QPushButton*   m_stageLogoBtn     = nullptr;
+    QLabel*        m_stageStatusLabel = nullptr;
 
     QTableWidget*  m_table        = nullptr;
     QPushButton*   m_stopAllBtn   = nullptr;

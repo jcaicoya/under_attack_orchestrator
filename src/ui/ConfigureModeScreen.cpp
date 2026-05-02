@@ -13,6 +13,11 @@
 #include <QKeyEvent>
 #include <QShowEvent>
 #include <QStyle>
+#include <QGuiApplication>
+#include <QScreen>
+#include <QJsonDocument>
+#include <QJsonObject>
+#include <QFile>
 
 // ---------- helpers ----------------------------------------------------------
 
@@ -160,6 +165,32 @@ void ConfigureModeScreen::buildUI() {
     escHint->setObjectName("MutedLabel");
     header->addWidget(escHint);
     root->addLayout(header);
+
+    // ── Escenario ─────────────────────────────────────────────────────────────
+    auto* stageRow = new QHBoxLayout();
+    stageRow->setSpacing(8);
+    auto* stageHeadLabel = new QLabel("Escenario:", this);
+    stageHeadLabel->setObjectName("FieldLabel");
+    stageRow->addWidget(stageHeadLabel);
+
+    m_screenCombo = new QComboBox(this);
+    m_screenCombo->setFocusPolicy(Qt::NoFocus);
+    m_screenCombo->setMinimumWidth(260);
+    stageRow->addWidget(m_screenCombo);
+
+    m_stageActivateBtn = new QPushButton("Activar", this);
+    m_stageActivateBtn->setFocusPolicy(Qt::NoFocus);
+    m_stageActivateBtn->setMinimumWidth(90);
+    connect(m_stageActivateBtn, &QPushButton::clicked,
+            this, &ConfigureModeScreen::onActivateStage);
+    stageRow->addWidget(m_stageActivateBtn);
+
+    stageRow->addSpacing(12);
+    m_stageStatusLabel = new QLabel("Inactivo", this);
+    m_stageStatusLabel->setObjectName("MutedLabel");
+    stageRow->addWidget(m_stageStatusLabel);
+    stageRow->addStretch();
+    root->addLayout(stageRow);
 
     // ── Aplicaciones ─────────────────────────────────────────────────────────
     root->addWidget(makeSectionLabel("Aplicaciones", this));
@@ -606,6 +637,76 @@ void ConfigureModeScreen::onLogMessage(const QString& formatted) {
     m_logPanel->verticalScrollBar()->setValue(m_logPanel->verticalScrollBar()->maximum());
 }
 
+// ---------- stage ------------------------------------------------------------
+
+void ConfigureModeScreen::setStageWindow(StageWindow* stage) {
+    m_stageWindow = stage;
+    if (!stage) return;
+    connect(stage, &StageWindow::activated,  this, &ConfigureModeScreen::updateStageStatus);
+    connect(stage, &StageWindow::deactivated, this, &ConfigureModeScreen::updateStageStatus);
+    loadStageConfig();
+    updateStageStatus();
+}
+
+void ConfigureModeScreen::populateScreenCombo() {
+    const int saved = m_screenCombo->currentIndex();
+    m_screenCombo->clear();
+    const auto screens = QGuiApplication::screens();
+    for (int i = 0; i < screens.size(); ++i) {
+        const QRect geo = screens[i]->geometry();
+        m_screenCombo->addItem(
+            QString("Pantalla %1: %2 (%3×%4)")
+                .arg(i).arg(screens[i]->name())
+                .arg(geo.width()).arg(geo.height()));
+    }
+    if (saved >= 0 && saved < m_screenCombo->count())
+        m_screenCombo->setCurrentIndex(saved);
+}
+
+void ConfigureModeScreen::onActivateStage() {
+    if (!m_stageWindow) return;
+    if (m_stageWindow->isActive()) {
+        m_stageWindow->deactivate();
+    } else {
+        const int idx = m_screenCombo->currentIndex();
+        m_stageWindow->activateOnScreen(idx);
+        saveStageConfig(idx);
+    }
+}
+
+void ConfigureModeScreen::updateStageStatus() {
+    if (!m_stageWindow || !m_stageWindow->isActive()) {
+        m_stageActivateBtn->setText("Activar");
+        m_stageStatusLabel->setText("Inactivo");
+    } else {
+        m_stageActivateBtn->setText("Desactivar");
+        m_stageStatusLabel->setText(
+            QString("Activo · Pantalla %1").arg(m_stageWindow->activeScreenIndex()));
+    }
+}
+
+void ConfigureModeScreen::loadStageConfig() {
+    const QString path = QDir(m_packageRoot).filePath("config/stage.json");
+    QFile f(path);
+    if (!f.exists() || !f.open(QIODevice::ReadOnly)) return;
+    QJsonParseError err;
+    const auto doc = QJsonDocument::fromJson(f.readAll(), &err);
+    if (err.error != QJsonParseError::NoError) return;
+    const int idx = doc.object()["screenIndex"].toInt(0);
+    if (idx >= 0 && idx < m_screenCombo->count())
+        m_screenCombo->setCurrentIndex(idx);
+}
+
+void ConfigureModeScreen::saveStageConfig(int screenIndex) {
+    const QString path = QDir(m_packageRoot).filePath("config/stage.json");
+    QDir().mkpath(QFileInfo(path).absolutePath());
+    QFile f(path);
+    if (!f.open(QIODevice::WriteOnly)) return;
+    QJsonObject obj;
+    obj["screenIndex"] = screenIndex;
+    f.write(QJsonDocument(obj).toJson());
+}
+
 void ConfigureModeScreen::keyPressEvent(QKeyEvent* event) {
     if (event->key() == Qt::Key_Escape) emit returnToSelector();
     else QWidget::keyPressEvent(event);
@@ -614,4 +715,6 @@ void ConfigureModeScreen::keyPressEvent(QKeyEvent* event) {
 void ConfigureModeScreen::showEvent(QShowEvent* event) {
     QWidget::showEvent(event);
     setFocus();
+    populateScreenCombo();
+    updateStageStatus();
 }

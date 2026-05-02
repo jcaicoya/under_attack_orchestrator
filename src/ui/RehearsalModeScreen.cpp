@@ -115,8 +115,36 @@ void RehearsalModeScreen::buildUI() {
     header->addWidget(escHint);
     root->addLayout(header);
 
-    // Rundown table
-    // Columns: "" | Nombre | Tipo | ✓ | Acción | Parar | Estado
+    // ── Stage controls ────────────────────────────────────────────────────────
+    auto* stageBar = new QHBoxLayout();
+    stageBar->setSpacing(8);
+    auto* stageLabel = new QLabel("Escenario:", this);
+    stageLabel->setObjectName("FieldLabel");
+    stageBar->addWidget(stageLabel);
+
+    m_stageBlackBtn = new QPushButton("Pantalla negra", this);
+    m_stageBlackBtn->setFocusPolicy(Qt::NoFocus);
+    m_stageBlackBtn->setEnabled(false);
+    connect(m_stageBlackBtn, &QPushButton::clicked, this, [this]() {
+        if (m_stageWindow) m_stageWindow->showBlack();
+    });
+    stageBar->addWidget(m_stageBlackBtn);
+
+    m_stageLogoBtn = new QPushButton("Logo", this);
+    m_stageLogoBtn->setFocusPolicy(Qt::NoFocus);
+    m_stageLogoBtn->setEnabled(false);
+    connect(m_stageLogoBtn, &QPushButton::clicked, this, [this]() {
+        if (m_stageWindow) m_stageWindow->showLogo();
+    });
+    stageBar->addWidget(m_stageLogoBtn);
+
+    stageBar->addStretch();
+    m_stageStatusLabel = new QLabel("Sin escenario", this);
+    m_stageStatusLabel->setObjectName("MutedLabel");
+    stageBar->addWidget(m_stageStatusLabel);
+    root->addLayout(stageBar);
+
+    // Rundown table — columns: "" | Nombre | Tipo | ✓ | Acción | Parar | Estado
     m_table = new QTableWidget(0, 7, this);
     m_table->setHorizontalHeaderLabels({"", "Nombre", "Tipo", "✓", "Acción", "Parar", "Estado"});
     m_table->horizontalHeader()->setSectionResizeMode(0, QHeaderView::Fixed); m_table->setColumnWidth(0, 52);
@@ -170,21 +198,71 @@ void RehearsalModeScreen::buildUI() {
     m_logPanel->setFixedHeight(120);
 }
 
+// ---------- stage ------------------------------------------------------------
+
+void RehearsalModeScreen::setStageWindow(StageWindow* stage) {
+    m_stageWindow = stage;
+    if (!stage) return;
+
+    connect(stage, &StageWindow::activated, this, [this](int idx) {
+        m_mediaManager->setStageOutput(m_stageWindow->videoOutput());
+        m_stageBlackBtn->setEnabled(true);
+        m_stageLogoBtn->setEnabled(true);
+        m_stageStatusLabel->setText(QString("Activo · Pantalla %1 · Negro").arg(idx));
+    });
+    connect(stage, &StageWindow::deactivated, this, [this]() {
+        m_mediaManager->setStageOutput(nullptr);
+        m_stageBlackBtn->setEnabled(false);
+        m_stageLogoBtn->setEnabled(false);
+        m_stageStatusLabel->setText("Inactivo");
+    });
+    connect(stage, &StageWindow::contentChanged, this, [this](StageWindow::Content c) {
+        if (!m_stageWindow || !m_stageWindow->isActive()) return;
+        QString suffix;
+        switch (c) {
+            case StageWindow::Content::Black: suffix = "Negro"; break;
+            case StageWindow::Content::Logo:  suffix = "Logo";  break;
+            case StageWindow::Content::Video: suffix = "Video"; break;
+        }
+        m_stageStatusLabel->setText(
+            QString("Activo · Pantalla %1 · %2").arg(m_stageWindow->activeScreenIndex()).arg(suffix));
+    });
+
+    updateStageControls();
+}
+
+void RehearsalModeScreen::updateStageControls() {
+    if (!m_stageWindow || !m_stageWindow->isActive()) {
+        m_stageBlackBtn->setEnabled(false);
+        m_stageLogoBtn->setEnabled(false);
+        m_stageStatusLabel->setText(m_stageWindow ? "Inactivo" : "Sin escenario");
+        if (m_stageWindow)
+            m_mediaManager->setStageOutput(nullptr);
+    } else {
+        m_stageBlackBtn->setEnabled(true);
+        m_stageLogoBtn->setEnabled(true);
+        m_stageStatusLabel->setText(
+            QString("Activo · Pantalla %1").arg(m_stageWindow->activeScreenIndex()));
+        m_mediaManager->setStageOutput(m_stageWindow->videoOutput());
+    }
+}
+
 // ---------- data sync --------------------------------------------------------
 
 void RehearsalModeScreen::syncAndRefresh() {
-    // Reload app library
     const QString appConfigPath = QDir(m_packageRoot).filePath("config/apps.json");
     if (QFileInfo::exists(appConfigPath))
         m_appConfig.loadFromFile(appConfigPath);
     m_appManager->loadApps(m_appConfig.apps());
 
-    // Reload media library
     const QString mediaConfigPath = QDir(m_packageRoot).filePath("config/media.json");
     m_mediaConfig.loadFromFile(mediaConfigPath);
     m_mediaManager->loadMedia(m_mediaConfig.items());
 
-    // Load and sync rundown
+    // Ensure stage output is wired after reload
+    if (m_stageWindow && m_stageWindow->isActive())
+        m_mediaManager->setStageOutput(m_stageWindow->videoOutput());
+
     m_rundownPath = QDir(m_packageRoot).filePath("config/rundown.json");
     m_rundownConfig.loadFromFile(m_rundownPath);
 
@@ -320,8 +398,6 @@ void RehearsalModeScreen::populateTable() {
         m_table->setItem(row, 6, stateItem);
 
         m_table->setRowHeight(row, 38);
-
-        // Sync button states with current manager state
         updateRow(row);
     }
 }
@@ -384,9 +460,20 @@ void RehearsalModeScreen::onStateChanged(const QString& id, AppState) {
     if (row >= 0) updateRow(row);
 }
 
-void RehearsalModeScreen::onMediaStateChanged(const QString& id, MediaState) {
+void RehearsalModeScreen::onMediaStateChanged(const QString& id, MediaState state) {
     int row = rowForRef("media", id);
-    if (row >= 0) updateRow(row);
+    if (row >= 0) {
+        updateRow(row);
+        // Route stage display when a video starts or stops
+        if (m_stageWindow && m_stageWindow->isActive()) {
+            if (const auto* e = mediaEntryForId(id); e && e->type == "video") {
+                if (state == MediaState::Playing)
+                    m_stageWindow->showVideo();
+                else if (state == MediaState::Stopped || state == MediaState::Error)
+                    m_stageWindow->showBlack();
+            }
+        }
+    }
 }
 
 void RehearsalModeScreen::onLogMessage(const QString& formatted) {
@@ -402,5 +489,6 @@ void RehearsalModeScreen::keyPressEvent(QKeyEvent* event) {
 void RehearsalModeScreen::showEvent(QShowEvent* event) {
     QWidget::showEvent(event);
     setFocus();
+    updateStageControls();
     syncAndRefresh();
 }

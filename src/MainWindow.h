@@ -1,6 +1,7 @@
 #pragma once
 #include <QMainWindow>
 #include <QStackedWidget>
+#include "StageWindow.h"
 #include "ui/ModeSelectorScreen.h"
 #include "ui/ConfigureModeScreen.h"
 #include "ui/RehearsalModeScreen.h"
@@ -14,6 +15,7 @@ public:
 private:
     QString               m_packageRoot;
     QStackedWidget*       m_stack            = nullptr;
+    StageWindow*          m_stageWindow      = nullptr;
     ModeSelectorScreen*   m_selectorScreen   = nullptr;
     ConfigureModeScreen*  m_configureScreen  = nullptr;
     RehearsalModeScreen*  m_rehearsalScreen  = nullptr;

@@ -71,11 +71,15 @@ void MediaManager::ensurePlayer(const QString& id, const MediaEntry& entry) {
         });
 
     if (entry.type == "video") {
-        rt.videoWidget = new QVideoWidget();   // parentless = top-level window
-        rt.videoWidget->setWindowTitle(entry.name);
-        rt.videoWidget->setAttribute(Qt::WA_DeleteOnClose, false);
-        rt.videoWidget->resize(854, 480);
-        rt.player->setVideoOutput(rt.videoWidget);
+        if (m_stageOutput) {
+            rt.player->setVideoOutput(m_stageOutput);
+        } else {
+            rt.videoWidget = new QVideoWidget();   // parentless = top-level fallback
+            rt.videoWidget->setWindowTitle(entry.name);
+            rt.videoWidget->setAttribute(Qt::WA_DeleteOnClose, false);
+            rt.videoWidget->resize(854, 480);
+            rt.player->setVideoOutput(rt.videoWidget);
+        }
     }
 }
 
@@ -103,6 +107,8 @@ void MediaManager::play(const QString& id) {
         rt.videoWidget->show();
         rt.videoWidget->raise();
     }
+    // If m_stageOutput is set, the caller switches the stage to Video mode
+    // via the stateChanged(Playing) signal — no action needed here.
 
     rt.player->setSource(QUrl::fromLocalFile(entry.path));
     rt.player->play();
@@ -119,4 +125,33 @@ void MediaManager::stopAll() {
     emit logMessage("Parando todos los medios...");
     for (const auto& e : m_entries)
         stop(e.id);
+}
+
+void MediaManager::setStageOutput(QVideoWidget* widget) {
+    m_stageOutput = widget;
+    for (auto it = m_runtimes.begin(); it != m_runtimes.end(); ++it) {
+        MediaRuntime& rt = it.value();
+        if (!rt.player) continue;
+        const QString& id = it.key();
+        auto entry = std::find_if(m_entries.begin(), m_entries.end(),
+            [&](const MediaEntry& e) { return e.id == id; });
+        if (entry == m_entries.end() || entry->type != "video") continue;
+
+        if (m_stageOutput) {
+            rt.player->setVideoOutput(m_stageOutput);
+            if (rt.videoWidget) {
+                rt.videoWidget->hide();
+                delete rt.videoWidget;
+                rt.videoWidget = nullptr;
+            }
+        } else {
+            if (!rt.videoWidget) {
+                rt.videoWidget = new QVideoWidget();
+                rt.videoWidget->setWindowTitle(entry->name);
+                rt.videoWidget->setAttribute(Qt::WA_DeleteOnClose, false);
+                rt.videoWidget->resize(854, 480);
+                rt.player->setVideoOutput(rt.videoWidget);
+            }
+        }
+    }
 }
