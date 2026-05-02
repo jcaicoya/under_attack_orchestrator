@@ -38,6 +38,22 @@ Write-Host "  Commit : $commitShort — $commitMsg"
 Write-Host "  Output : $zipName"
 Write-Host ""
 
+# --- Initialize MSVC environment ---
+$vswhere = "${env:ProgramFiles(x86)}\Microsoft Visual Studio\Installer\vswhere.exe"
+if (Test-Path $vswhere) {
+    $vsPath = & $vswhere -latest -products * -requires Microsoft.VisualStudio.Component.VC.Tools.x86.x64 -property installationPath
+    $vcvars = "$vsPath\VC\Auxiliary\Build\vcvars64.bat"
+    if (Test-Path $vcvars) {
+        Write-Host ">> Initializing MSVC environment..."
+        $envLines = cmd /c "`"$vcvars`" > nul 2>&1 && set"
+        foreach ($line in $envLines) {
+            if ($line -match "^([^=]+)=(.*)$") {
+                [System.Environment]::SetEnvironmentVariable($Matches[1], $Matches[2])
+            }
+        }
+    }
+}
+
 # --- Build ---
 # Reuse existing cmake configuration (e.g. CLion's Release profile) if present.
 # If not, configure from scratch — cmake will pick the default generator.

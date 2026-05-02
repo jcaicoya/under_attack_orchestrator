@@ -6,6 +6,13 @@
       "date": "2026-05-01T21:05:35",
       "message": "Add release packaging script and workflow",
       "zip": "cybershow-orchestrator-v00.zip"
+    },
+    {
+      "version": 1,
+      "commit": "1d5276e",
+      "date": "2026-05-02T09:24:47",
+      "message": "Update apps_default.json",
+      "zip": "cybershow-orchestrator-v01.zip"
     }
   ]
 }
