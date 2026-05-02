@@ -89,11 +89,26 @@ foreach ($folder in @("config", "apps", "media", "sounds", "lights", "logs", "to
     New-Item -ItemType Directory "$staging\$folder" | Out-Null
 }
 
-Copy-Item "$out\orchestrator.exe"                       $staging
-Copy-Item "$out\Qt6Core.dll"                            $staging
-Copy-Item "$out\Qt6Gui.dll"                             $staging
-Copy-Item "$out\Qt6Widgets.dll"                         $staging
-Copy-Item "$out\plugins\platforms\qwindows.dll"         "$staging\plugins\platforms\"
+Copy-Item "$out\orchestrator.exe" $staging
+
+# Qt DLLs (all that were deployed by CMakeLists.txt post-build)
+foreach ($dll in (Get-ChildItem "$out\Qt6*.dll")) {
+    Copy-Item $dll.FullName $staging
+}
+
+# FFmpeg DLLs required by the multimedia backend
+foreach ($dll in (Get-ChildItem "$out\av*.dll", "$out\sw*.dll" -ErrorAction SilentlyContinue)) {
+    Copy-Item $dll.FullName $staging
+}
+
+# Platform plugin
+Copy-Item "$out\plugins\platforms\qwindows.dll" "$staging\plugins\platforms\"
+
+# Multimedia backend plugin
+if (Test-Path "$out\plugins\multimedia") {
+    New-Item -ItemType Directory "$staging\plugins\multimedia" | Out-Null
+    Copy-Item "$out\plugins\multimedia\*" "$staging\plugins\multimedia\" -Recurse
+}
 
 # --- Zip ---
 Write-Host ">> Creating zip..."
