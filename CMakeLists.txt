@@ -8,13 +8,15 @@ set(CMAKE_AUTOUIC ON)
 
 set(CMAKE_PREFIX_PATH "C:/Qt/6.7.3/msvc2022_64")
 
-find_package(Qt6 COMPONENTS Core Gui Widgets REQUIRED)
+find_package(Qt6 COMPONENTS Core Gui Widgets Multimedia MultimediaWidgets REQUIRED)
 
 set(SOURCES
     src/main.cpp
     src/Logger.cpp
     src/AppConfig.cpp
     src/AppManager.cpp
+    src/MediaConfig.cpp
+    src/MediaManager.cpp
     src/MainWindow.cpp
     src/ui/CyberTheme.cpp
     src/ui/CyberBackgroundWidget.cpp
@@ -27,6 +29,8 @@ set(HEADERS
     src/Logger.h
     src/AppConfig.h
     src/AppManager.h
+    src/MediaConfig.h
+    src/MediaManager.h
     src/MainWindow.h
     src/ui/CyberTheme.h
     src/ui/CyberBackgroundWidget.h
@@ -50,6 +54,8 @@ target_link_libraries(orchestrator
     Qt::Core
     Qt::Gui
     Qt::Widgets
+    Qt::Multimedia
+    Qt::MultimediaWidgets
 )
 
 # Deploy Qt DLLs next to the executable after build
@@ -79,7 +85,7 @@ if (WIN32 AND NOT DEFINED CMAKE_TOOLCHAIN_FILE)
     endif ()
 
     # Core Qt DLLs
-    foreach (QT_LIB Core Gui Widgets)
+    foreach (QT_LIB Core Gui Widgets Multimedia MultimediaWidgets)
         add_custom_command(TARGET ${PROJECT_NAME} POST_BUILD
             COMMAND ${CMAKE_COMMAND} -E copy
                 "${QT_INSTALL_PATH}/bin/Qt6${QT_LIB}${DEBUG_SUFFIX}.dll"
