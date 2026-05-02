@@ -1,11 +1,10 @@
-#include "RehearsalModeScreen.h"
+#include "ShowModeScreen.h"
 #include "Logger.h"
 #include "CyberTheme.h"
 #include <QVBoxLayout>
 #include <QHBoxLayout>
 #include <QHeaderView>
 #include <QLabel>
-#include <QCheckBox>
 #include <QScrollBar>
 #include <QDir>
 #include <QFileInfo>
@@ -62,8 +61,12 @@ static const QString TABLE_STYLE = QStringLiteral(R"QSS(
         gridline-color: #1A2030;
     }
     QTableWidget::item {
-        padding: 4px 8px;
+        padding: 6px 10px;
         border-bottom: 1px solid #1A2030;
+    }
+    QTableWidget::item:selected {
+        background-color: #1A2A3A;
+        color: #E0E8F0;
     }
     QHeaderView::section {
         background-color: #151922;
@@ -79,34 +82,34 @@ static const QString TABLE_STYLE = QStringLiteral(R"QSS(
 
 // ---------- construction -----------------------------------------------------
 
-RehearsalModeScreen::RehearsalModeScreen(const QString& packageRoot, QWidget* parent)
+ShowModeScreen::ShowModeScreen(const QString& packageRoot, QWidget* parent)
     : QWidget(parent)
     , m_packageRoot(packageRoot)
     , m_appManager(new AppManager(packageRoot, this))
     , m_mediaManager(new MediaManager(this))
 {
     setFocusPolicy(Qt::StrongFocus);
-    m_appManager->setMode(ShowMode::Design);
+    m_appManager->setMode(ShowMode::Show);
 
-    connect(m_appManager,   &AppManager::stateChanged,   this, &RehearsalModeScreen::onStateChanged);
+    connect(m_appManager,   &AppManager::stateChanged,   this, &ShowModeScreen::onStateChanged);
     connect(m_appManager,   &AppManager::logMessage,     &Logger::instance(), &Logger::log);
-    connect(m_mediaManager, &MediaManager::stateChanged, this, &RehearsalModeScreen::onMediaStateChanged);
+    connect(m_mediaManager, &MediaManager::stateChanged, this, &ShowModeScreen::onMediaStateChanged);
     connect(m_mediaManager, &MediaManager::logMessage,   &Logger::instance(), &Logger::log);
-    connect(&Logger::instance(), &Logger::messageLogged, this, &RehearsalModeScreen::onLogMessage);
+    connect(&Logger::instance(), &Logger::messageLogged, this, &ShowModeScreen::onLogMessage);
 
     buildUI();
 }
 
 // ---------- UI ---------------------------------------------------------------
 
-void RehearsalModeScreen::buildUI() {
+void ShowModeScreen::buildUI() {
     auto* root = new QVBoxLayout(this);
     root->setSpacing(8);
     root->setContentsMargins(16, 14, 16, 14);
 
     // Header
     auto* header = new QHBoxLayout();
-    auto* title = new QLabel("ENSAYO", this);
+    auto* title = new QLabel("SHOW", this);
     title->setObjectName("ScreenTitle");
     header->addWidget(title);
     header->addStretch();
@@ -125,17 +128,15 @@ void RehearsalModeScreen::buildUI() {
     m_stageBlackBtn = new QPushButton("Pantalla negra", this);
     m_stageBlackBtn->setFocusPolicy(Qt::NoFocus);
     m_stageBlackBtn->setEnabled(false);
-    connect(m_stageBlackBtn, &QPushButton::clicked, this, [this]() {
-        if (m_stageWindow) m_stageWindow->showBlack();
-    });
+    connect(m_stageBlackBtn, &QPushButton::clicked, this,
+            [this]() { if (m_stageWindow) m_stageWindow->showBlack(); });
     stageBar->addWidget(m_stageBlackBtn);
 
     m_stageLogoBtn = new QPushButton("Logo", this);
     m_stageLogoBtn->setFocusPolicy(Qt::NoFocus);
     m_stageLogoBtn->setEnabled(false);
-    connect(m_stageLogoBtn, &QPushButton::clicked, this, [this]() {
-        if (m_stageWindow) m_stageWindow->showLogo();
-    });
+    connect(m_stageLogoBtn, &QPushButton::clicked, this,
+            [this]() { if (m_stageWindow) m_stageWindow->showLogo(); });
     stageBar->addWidget(m_stageLogoBtn);
 
     stageBar->addStretch();
@@ -144,28 +145,66 @@ void RehearsalModeScreen::buildUI() {
     stageBar->addWidget(m_stageStatusLabel);
     root->addLayout(stageBar);
 
-    // Rundown table — columns: "" | Nombre | Tipo | ✓ | Acción | Parar | Estado
-    m_table = new QTableWidget(0, 7, this);
-    m_table->setHorizontalHeaderLabels({"", "Nombre", "Tipo", "✓", "Acción", "Parar", "Estado"});
-    m_table->horizontalHeader()->setSectionResizeMode(0, QHeaderView::Fixed); m_table->setColumnWidth(0, 52);
+    // ── Scene table ───────────────────────────────────────────────────────────
+    // Columns: Nº | Nombre | Tipo | Estado
+    m_table = new QTableWidget(0, 4, this);
+    m_table->setHorizontalHeaderLabels({"Nº", "Escena", "Tipo", "Estado"});
+    m_table->horizontalHeader()->setSectionResizeMode(0, QHeaderView::Fixed); m_table->setColumnWidth(0, 42);
     m_table->horizontalHeader()->setSectionResizeMode(1, QHeaderView::Stretch);
     m_table->horizontalHeader()->setSectionResizeMode(2, QHeaderView::Fixed); m_table->setColumnWidth(2, 68);
-    m_table->horizontalHeader()->setSectionResizeMode(3, QHeaderView::Fixed); m_table->setColumnWidth(3, 36);
-    m_table->horizontalHeader()->setSectionResizeMode(4, QHeaderView::Fixed); m_table->setColumnWidth(4, 100);
-    m_table->horizontalHeader()->setSectionResizeMode(5, QHeaderView::Fixed); m_table->setColumnWidth(5, 80);
-    m_table->horizontalHeader()->setSectionResizeMode(6, QHeaderView::Fixed); m_table->setColumnWidth(6, 130);
-    m_table->setSelectionMode(QAbstractItemView::NoSelection);
+    m_table->horizontalHeader()->setSectionResizeMode(3, QHeaderView::Fixed); m_table->setColumnWidth(3, 130);
+    m_table->setSelectionMode(QAbstractItemView::SingleSelection);
+    m_table->setSelectionBehavior(QAbstractItemView::SelectRows);
     m_table->setEditTriggers(QAbstractItemView::NoEditTriggers);
     m_table->setFocusPolicy(Qt::NoFocus);
     m_table->verticalHeader()->setVisible(false);
     m_table->setShowGrid(false);
     m_table->setSortingEnabled(false);
     m_table->setStyleSheet(TABLE_STYLE);
+    connect(m_table, &QTableWidget::cellDoubleClicked,
+            this, [this](int row, int) { activateScene(row); });
     root->addWidget(m_table, 1);
 
-    // Bottom bar
-    auto* bar = new QHBoxLayout();
-    bar->addStretch();
+    // ── Navigation bar ────────────────────────────────────────────────────────
+    auto* navBar = new QHBoxLayout();
+    navBar->setSpacing(8);
+
+    m_prevBtn = new QPushButton("◀  Anterior", this);
+    m_prevBtn->setFocusPolicy(Qt::NoFocus);
+    m_prevBtn->setMinimumWidth(110);
+    m_prevBtn->setEnabled(false);
+    connect(m_prevBtn, &QPushButton::clicked, this, [this]() {
+        if (m_currentRow > 0) activateScene(m_currentRow - 1);
+    });
+    navBar->addWidget(m_prevBtn);
+
+    m_activateBtn = new QPushButton("▶  Activar", this);
+    m_activateBtn->setFocusPolicy(Qt::NoFocus);
+    m_activateBtn->setMinimumWidth(110);
+    connect(m_activateBtn, &QPushButton::clicked, this, [this]() {
+        const int target = (m_currentRow < 0) ? 0 : m_currentRow;
+        if (target < m_table->rowCount()) activateScene(target);
+    });
+    navBar->addWidget(m_activateBtn);
+
+    m_nextBtn = new QPushButton("Siguiente  ▶", this);
+    m_nextBtn->setFocusPolicy(Qt::NoFocus);
+    m_nextBtn->setMinimumWidth(110);
+    m_nextBtn->setEnabled(false);
+    connect(m_nextBtn, &QPushButton::clicked, this, [this]() {
+        const int next = m_currentRow + 1;
+        if (next < m_table->rowCount()) activateScene(next);
+    });
+    navBar->addWidget(m_nextBtn);
+
+    navBar->addStretch();
+
+    m_sceneLabel = new QLabel("—", this);
+    m_sceneLabel->setObjectName("MutedLabel");
+    navBar->addWidget(m_sceneLabel);
+
+    navBar->addSpacing(24);
+
     m_stopAllBtn = new QPushButton("Parar todo", this);
     m_stopAllBtn->setObjectName("DangerButton");
     m_stopAllBtn->setMinimumWidth(110);
@@ -173,9 +212,14 @@ void RehearsalModeScreen::buildUI() {
     connect(m_stopAllBtn, &QPushButton::clicked, this, [this]() {
         m_appManager->stopAll();
         m_mediaManager->stopAll();
+        m_currentRow = -1;
+        updateNavButtons();
+        if (m_stageWindow && m_stageWindow->isActive())
+            m_stageWindow->showBlack();
+        Logger::instance().log("Show: parado todo.");
     });
-    bar->addWidget(m_stopAllBtn);
-    root->addLayout(bar);
+    navBar->addWidget(m_stopAllBtn);
+    root->addLayout(navBar);
 
     // Log
     auto* logLabel = new QLabel("Log:", this);
@@ -194,13 +238,13 @@ void RehearsalModeScreen::buildUI() {
         "  font-size: 11px;"
         "  padding: 8px;"
         "}");
-    root->addWidget(m_logPanel, 0);
-    m_logPanel->setFixedHeight(120);
+    m_logPanel->setFixedHeight(100);
+    root->addWidget(m_logPanel);
 }
 
 // ---------- stage ------------------------------------------------------------
 
-void RehearsalModeScreen::setStageWindow(StageWindow* stage) {
+void ShowModeScreen::setStageWindow(StageWindow* stage) {
     m_stageWindow = stage;
     if (!stage) return;
 
@@ -231,13 +275,12 @@ void RehearsalModeScreen::setStageWindow(StageWindow* stage) {
     updateStageControls();
 }
 
-void RehearsalModeScreen::updateStageControls() {
+void ShowModeScreen::updateStageControls() {
     if (!m_stageWindow || !m_stageWindow->isActive()) {
         m_stageBlackBtn->setEnabled(false);
         m_stageLogoBtn->setEnabled(false);
         m_stageStatusLabel->setText(m_stageWindow ? "Inactivo" : "Sin escenario");
-        if (m_stageWindow)
-            m_mediaManager->setStageOutput(nullptr);
+        if (m_stageWindow) m_mediaManager->setStageOutput(nullptr);
     } else {
         m_stageBlackBtn->setEnabled(true);
         m_stageLogoBtn->setEnabled(true);
@@ -247,9 +290,9 @@ void RehearsalModeScreen::updateStageControls() {
     }
 }
 
-// ---------- data sync --------------------------------------------------------
+// ---------- data load --------------------------------------------------------
 
-void RehearsalModeScreen::syncAndRefresh() {
+void ShowModeScreen::loadAndSync() {
     const QString appConfigPath = QDir(m_packageRoot).filePath("config/apps.json");
     if (QFileInfo::exists(appConfigPath))
         m_appConfig.loadFromFile(appConfigPath);
@@ -259,27 +302,31 @@ void RehearsalModeScreen::syncAndRefresh() {
     m_mediaConfig.loadFromFile(mediaConfigPath);
     m_mediaManager->loadMedia(m_mediaConfig.items());
 
-    // Ensure stage output is wired after reload
     if (m_stageWindow && m_stageWindow->isActive())
         m_mediaManager->setStageOutput(m_stageWindow->videoOutput());
 
     m_rundownPath = QDir(m_packageRoot).filePath("config/rundown.json");
-    m_rundownConfig.loadFromFile(m_rundownPath);
+    RundownConfig full;
+    full.loadFromFile(m_rundownPath);
 
-    QStringList appIds, mediaIds;
-    for (const auto& e : m_appConfig.apps())    appIds   << e.id;
-    for (const auto& e : m_mediaConfig.items()) mediaIds << e.id;
-    m_rundownConfig.syncWithLibraries(appIds, mediaIds);
-    m_rundownConfig.saveToFile(m_rundownPath);
+    // Show mode only uses enabled items
+    m_rundownConfig.setItems({});
+    QList<RundownItem> enabled;
+    for (const auto& item : full.items())
+        if (item.enabled) enabled.append(item);
+    m_rundownConfig.setItems(enabled);
 
+    m_currentRow = -1;
     populateTable();
+    updateNavButtons();
+
     Logger::instance().log(
-        QString("Ensayo: %1 elemento(s) en el rundown.").arg(m_rundownConfig.items().size()));
+        QString("Show: %1 escena(s) en el rundown.").arg(m_rundownConfig.items().size()));
 }
 
 // ---------- table ------------------------------------------------------------
 
-void RehearsalModeScreen::populateTable() {
+void ShowModeScreen::populateTable() {
     m_table->setRowCount(0);
     const auto& items = m_rundownConfig.items();
 
@@ -287,36 +334,11 @@ void RehearsalModeScreen::populateTable() {
         const RundownItem& item = items[row];
         m_table->insertRow(row);
 
-        // Col 0: ▲▼ reorder buttons
-        auto* arrowWidget = new QWidget(this);
-        arrowWidget->setStyleSheet("background: transparent;");
-        auto* arrowLay = new QHBoxLayout(arrowWidget);
-        arrowLay->setContentsMargins(2, 2, 2, 2);
-        arrowLay->setSpacing(2);
-        auto* upBtn   = new QPushButton("▲", this);
-        auto* downBtn = new QPushButton("▼", this);
-        upBtn->setFixedSize(22, 28);
-        downBtn->setFixedSize(22, 28);
-        upBtn->setFocusPolicy(Qt::NoFocus);
-        downBtn->setFocusPolicy(Qt::NoFocus);
-        upBtn->setEnabled(row > 0);
-        downBtn->setEnabled(row < items.size() - 1);
-        upBtn->setStyleSheet("QPushButton { font-size: 9px; padding: 0; }");
-        downBtn->setStyleSheet("QPushButton { font-size: 9px; padding: 0; }");
-        arrowLay->addWidget(upBtn);
-        arrowLay->addWidget(downBtn);
-        m_table->setCellWidget(row, 0, arrowWidget);
-
-        connect(upBtn, &QPushButton::clicked, this, [this, row]() {
-            m_rundownConfig.moveUp(row);
-            m_rundownConfig.saveToFile(m_rundownPath);
-            populateTable();
-        });
-        connect(downBtn, &QPushButton::clicked, this, [this, row]() {
-            m_rundownConfig.moveDown(row);
-            m_rundownConfig.saveToFile(m_rundownPath);
-            populateTable();
-        });
+        // Col 0: Nº
+        auto* numItem = new QTableWidgetItem(QString::number(row + 1));
+        numItem->setForeground(CyberTheme::color(CyberTheme::TextMuted));
+        numItem->setTextAlignment(Qt::AlignCenter);
+        m_table->setItem(row, 0, numItem);
 
         // Col 1: Nombre
         QString name = item.ref;
@@ -326,9 +348,7 @@ void RehearsalModeScreen::populateTable() {
             if (const auto* e = mediaEntryForId(item.ref)) name = e->name;
         }
         auto* nameItem = new QTableWidgetItem(name);
-        nameItem->setForeground(item.enabled
-            ? CyberTheme::color(CyberTheme::TextPrimary)
-            : CyberTheme::color(CyberTheme::TextMuted));
+        nameItem->setForeground(CyberTheme::color(CyberTheme::TextPrimary));
         m_table->setItem(row, 1, nameItem);
 
         // Col 2: Tipo
@@ -347,124 +367,145 @@ void RehearsalModeScreen::populateTable() {
         typeItem->setForeground(typeColor);
         m_table->setItem(row, 2, typeItem);
 
-        // Col 3: Enabled checkbox
-        auto* cbWidget = new QWidget(this);
-        cbWidget->setStyleSheet("background: transparent;");
-        auto* cbLay = new QHBoxLayout(cbWidget);
-        cbLay->setContentsMargins(0, 0, 0, 0);
-        cbLay->setAlignment(Qt::AlignCenter);
-        auto* cb = new QCheckBox(this);
-        cb->setChecked(item.enabled);
-        cb->setFocusPolicy(Qt::NoFocus);
-        cbLay->addWidget(cb);
-        m_table->setCellWidget(row, 3, cbWidget);
-
-        connect(cb, &QCheckBox::toggled, this, [this, row](bool checked) {
-            m_rundownConfig.setEnabled(row, checked);
-            m_rundownConfig.saveToFile(m_rundownPath);
-            if (auto* ni = m_table->item(row, 1))
-                ni->setForeground(checked
-                    ? CyberTheme::color(CyberTheme::TextPrimary)
-                    : CyberTheme::color(CyberTheme::TextMuted));
-        });
-
-        // Col 4: Action button (Iniciar / Reproducir)
-        bool isApp = (item.type == "app");
-        auto* actionBtn = new QPushButton(isApp ? "Iniciar" : "Reproducir", this);
-        actionBtn->setFocusPolicy(Qt::NoFocus);
-        m_table->setCellWidget(row, 4, actionBtn);
-
-        const QString ref  = item.ref;
-        const QString type = item.type;
-        connect(actionBtn, &QPushButton::clicked, this, [this, ref, type]() {
-            if (type == "app") m_appManager->start(ref);
-            else               m_mediaManager->play(ref);
-        });
-
-        // Col 5: Stop button
-        auto* stopBtn = new QPushButton("Parar", this);
-        stopBtn->setFocusPolicy(Qt::NoFocus);
-        stopBtn->setEnabled(false);
-        m_table->setCellWidget(row, 5, stopBtn);
-
-        connect(stopBtn, &QPushButton::clicked, this, [this, ref, type]() {
-            if (type == "app") m_appManager->stop(ref);
-            else               m_mediaManager->stop(ref);
-        });
-
-        // Col 6: Estado
+        // Col 3: Estado
         auto* stateItem = new QTableWidgetItem("LISTA");
         stateItem->setForeground(CyberTheme::color(CyberTheme::TextMuted));
-        m_table->setItem(row, 6, stateItem);
+        m_table->setItem(row, 3, stateItem);
 
-        m_table->setRowHeight(row, 38);
+        m_table->setRowHeight(row, 42);
         updateRow(row);
     }
 }
 
-void RehearsalModeScreen::updateRow(int row) {
+void ShowModeScreen::updateRow(int row) {
     const auto& items = m_rundownConfig.items();
     if (row < 0 || row >= items.size()) return;
     const RundownItem& item = items[row];
 
     QString stateLabel;
     QColor  stateColor;
-    bool    canAction = false;
-    bool    canStop   = false;
 
     if (item.type == "app") {
         AppState s = m_appManager->state(item.ref);
         stateLabel = appStateLabel(s);
         stateColor = appStateColor(s);
-        canAction  = (s == AppState::Stopped || s == AppState::Error);
-        canStop    = (s == AppState::Starting || s == AppState::Running || s == AppState::Stopping);
     } else {
         MediaState s = m_mediaManager->state(item.ref);
         stateLabel = mediaStateLabel(s);
         stateColor = mediaStateColor(s);
-        canAction  = (s == MediaState::Stopped || s == MediaState::Error);
-        canStop    = (s == MediaState::Playing);
     }
 
-    if (auto* si = m_table->item(row, 6)) {
+    if (auto* si = m_table->item(row, 3)) {
         si->setText(stateLabel);
         si->setForeground(stateColor);
     }
-    if (auto* b = qobject_cast<QPushButton*>(m_table->cellWidget(row, 4))) b->setEnabled(canAction);
-    if (auto* b = qobject_cast<QPushButton*>(m_table->cellWidget(row, 5))) b->setEnabled(canStop);
+
+    // Highlight active row
+    const bool isActive = (row == m_currentRow);
+    const QColor bg     = isActive ? QColor("#0D2235") : QColor();
+    const QColor accent = isActive ? QColor("#00BFFF") : CyberTheme::color(CyberTheme::TextPrimary);
+    for (int col = 0; col < m_table->columnCount(); ++col) {
+        if (auto* it = m_table->item(row, col)) {
+            it->setBackground(isActive ? bg : QBrush());
+            if (col == 1) it->setForeground(accent);
+        }
+    }
+    if (auto* numIt = m_table->item(row, 0))
+        numIt->setForeground(isActive ? QColor("#00BFFF") : CyberTheme::color(CyberTheme::TextMuted));
 }
 
-int RehearsalModeScreen::rowForRef(const QString& type, const QString& id) const {
+void ShowModeScreen::updateNavButtons() {
+    const int count = m_table->rowCount();
+    m_prevBtn->setEnabled(m_currentRow > 0);
+    m_nextBtn->setEnabled(m_currentRow >= 0 && m_currentRow < count - 1);
+    m_activateBtn->setEnabled(count > 0);
+
+    if (m_currentRow < 0) {
+        m_sceneLabel->setText(count > 0 ? "Selecciona una escena" : "Sin escenas");
+    } else {
+        const QString name = m_table->item(m_currentRow, 1)
+            ? m_table->item(m_currentRow, 1)->text() : QString();
+        const int next = m_currentRow + 1;
+        const QString nextName = (next < count && m_table->item(next, 1))
+            ? m_table->item(next, 1)->text() : QString("—");
+        m_sceneLabel->setText(
+            QString("Escena %1/%2: %3   →  %4").arg(m_currentRow + 1).arg(count).arg(name, nextName));
+    }
+}
+
+int ShowModeScreen::rowForRef(const QString& type, const QString& id) const {
     const auto& items = m_rundownConfig.items();
     for (int i = 0; i < items.size(); ++i)
         if (items[i].type == type && items[i].ref == id) return i;
     return -1;
 }
 
-const AppEntry* RehearsalModeScreen::appEntryForId(const QString& id) const {
+const AppEntry* ShowModeScreen::appEntryForId(const QString& id) const {
     for (const auto& e : m_appConfig.apps())
         if (e.id == id) return &e;
     return nullptr;
 }
 
-const MediaEntry* RehearsalModeScreen::mediaEntryForId(const QString& id) const {
+const MediaEntry* ShowModeScreen::mediaEntryForId(const QString& id) const {
     for (const auto& e : m_mediaConfig.items())
         if (e.id == id) return &e;
     return nullptr;
 }
 
+// ---------- scene control ----------------------------------------------------
+
+void ShowModeScreen::activateScene(int row) {
+    const auto& items = m_rundownConfig.items();
+    if (row < 0 || row >= items.size()) return;
+
+    // Stop previous scene if different
+    if (m_currentRow >= 0 && m_currentRow != row)
+        stopCurrentScene();
+
+    const int prev = m_currentRow;
+    m_currentRow = row;
+
+    // Deselect previous row highlight
+    if (prev >= 0 && prev < m_table->rowCount())
+        updateRow(prev);
+
+    const RundownItem& item = items[row];
+
+    QString name = item.ref;
+    if (item.type == "app") {
+        if (const auto* e = appEntryForId(item.ref)) name = e->name;
+        m_appManager->start(item.ref);
+    } else {
+        if (const auto* e = mediaEntryForId(item.ref)) name = e->name;
+        m_mediaManager->play(item.ref);
+    }
+
+    m_table->selectRow(row);
+    updateRow(row);
+    updateNavButtons();
+    Logger::instance().log(QString("Show: activando escena %1 — %2").arg(row + 1).arg(name));
+}
+
+void ShowModeScreen::stopCurrentScene() {
+    if (m_currentRow < 0) return;
+    const auto& items = m_rundownConfig.items();
+    if (m_currentRow >= items.size()) return;
+    const RundownItem& item = items[m_currentRow];
+    if (item.type == "app")   m_appManager->stop(item.ref);
+    else                      m_mediaManager->stop(item.ref);
+}
+
 // ---------- slots ------------------------------------------------------------
 
-void RehearsalModeScreen::onStateChanged(const QString& id, AppState) {
+void ShowModeScreen::onStateChanged(const QString& id, AppState) {
     int row = rowForRef("app", id);
     if (row >= 0) updateRow(row);
 }
 
-void RehearsalModeScreen::onMediaStateChanged(const QString& id, MediaState state) {
+void ShowModeScreen::onMediaStateChanged(const QString& id, MediaState state) {
     int row = rowForRef("media", id);
     if (row >= 0) {
         updateRow(row);
-        // Route stage display when a video starts or stops
         if (m_stageWindow && m_stageWindow->isActive()) {
             if (const auto* e = mediaEntryForId(id); e && e->type == "video") {
                 if (state == MediaState::Playing)
@@ -476,19 +517,39 @@ void RehearsalModeScreen::onMediaStateChanged(const QString& id, MediaState stat
     }
 }
 
-void RehearsalModeScreen::onLogMessage(const QString& formatted) {
+void ShowModeScreen::onLogMessage(const QString& formatted) {
     m_logPanel->append(formatted);
     m_logPanel->verticalScrollBar()->setValue(m_logPanel->verticalScrollBar()->maximum());
 }
 
-void RehearsalModeScreen::keyPressEvent(QKeyEvent* event) {
-    if (event->key() == Qt::Key_Escape) emit returnToSelector();
-    else QWidget::keyPressEvent(event);
+void ShowModeScreen::keyPressEvent(QKeyEvent* event) {
+    switch (event->key()) {
+        case Qt::Key_Right:
+        case Qt::Key_Space: {
+            const int next = (m_currentRow < 0) ? 0 : m_currentRow + 1;
+            if (next < m_table->rowCount()) activateScene(next);
+            break;
+        }
+        case Qt::Key_Left:
+            if (m_currentRow > 0) activateScene(m_currentRow - 1);
+            break;
+        case Qt::Key_Return:
+        case Qt::Key_Enter: {
+            const int target = (m_currentRow < 0) ? 0 : m_currentRow;
+            if (target < m_table->rowCount()) activateScene(target);
+            break;
+        }
+        case Qt::Key_Escape:
+            emit returnToSelector();
+            break;
+        default:
+            QWidget::keyPressEvent(event);
+    }
 }
 
-void RehearsalModeScreen::showEvent(QShowEvent* event) {
+void ShowModeScreen::showEvent(QShowEvent* event) {
     QWidget::showEvent(event);
     setFocus();
     updateStageControls();
-    syncAndRefresh();
+    loadAndSync();
 }

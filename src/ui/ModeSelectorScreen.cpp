@@ -193,8 +193,8 @@ ModeSelectorScreen::ModeSelectorScreen(QWidget* parent)
     struct CardDef { QString title; QString description; bool available; };
     const QVector<CardDef> defs = {
         { "CONFIGURAR", "Preparar aplicaciones,\najustar rutas y\nprobar conexiones.",   true  },
-        { "DISEÑO",     "Ensayo técnico sin\npantallas de\nconfiguración.",               true  },
-        { "SHOW",       "Modo seguro para\nla actuación real.",                           false },
+        { "ENSAYO",     "Ensayo técnico sin\npantallas de\nconfiguración.",               true  },
+        { "SHOW",       "Modo seguro para\nla actuación real.",                           true  },
     };
 
     for (int i = 0; i < defs.size(); ++i) {
@@ -215,7 +215,7 @@ ModeSelectorScreen::ModeSelectorScreen(QWidget* parent)
     root->addStretch(2);
 
     // Keyboard hint
-    auto* hint = new QLabel("1 · Configurar     ←  →  Navegar     Enter · Abrir", this);
+    auto* hint = new QLabel("1 · Configurar     2 · Ensayo     3 · Show     ←  →  Navegar     Enter · Abrir", this);
     hint->setAlignment(Qt::AlignHCenter);
     hint->setStyleSheet(
         "QLabel { color: #3A4455; font-size: 11px; font-weight: 600; background: transparent; }");
@@ -253,6 +253,7 @@ void ModeSelectorScreen::keyPressEvent(QKeyEvent* event) {
             break;
         case Qt::Key_3:
             selectCard(2);
+            if (m_cards[2]->isAvailable()) confirmMode(2);
             break;
         case Qt::Key_Left:
             selectCard(qMax(0, m_selectedIndex - 1));

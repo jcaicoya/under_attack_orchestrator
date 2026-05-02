@@ -26,6 +26,7 @@ set(SOURCES
     src/ui/ModeSelectorScreen.cpp
     src/ui/ConfigureModeScreen.cpp
     src/ui/RehearsalModeScreen.cpp
+    src/ui/ShowModeScreen.cpp
 )
 
 set(HEADERS
@@ -43,6 +44,7 @@ set(HEADERS
     src/ui/ModeSelectorScreen.h
     src/ui/ConfigureModeScreen.h
     src/ui/RehearsalModeScreen.h
+    src/ui/ShowModeScreen.h
 )
 
 add_executable(orchestrator

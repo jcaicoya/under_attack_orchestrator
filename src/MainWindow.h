@@ -5,6 +5,7 @@
 #include "ui/ModeSelectorScreen.h"
 #include "ui/ConfigureModeScreen.h"
 #include "ui/RehearsalModeScreen.h"
+#include "ui/ShowModeScreen.h"
 
 class MainWindow : public QMainWindow {
     Q_OBJECT
@@ -19,4 +20,5 @@ private:
     ModeSelectorScreen*   m_selectorScreen   = nullptr;
     ConfigureModeScreen*  m_configureScreen  = nullptr;
     RehearsalModeScreen*  m_rehearsalScreen  = nullptr;
+    ShowModeScreen*       m_showScreen       = nullptr;
 };
