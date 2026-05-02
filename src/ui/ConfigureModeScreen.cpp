@@ -305,8 +305,10 @@ void ConfigureModeScreen::editApp(const QString& id) {
     }
 
     const AppEntry& current = m_config.apps()[ci];
+    QString startDir = QFileInfo::exists(current.workingDirectory)
+        ? current.workingDirectory : m_packageRoot;
     QString exePath = QFileDialog::getOpenFileName(
-        this, "Seleccionar ejecutable", current.workingDirectory, "Executables (*.exe)");
+        this, "Seleccionar ejecutable", startDir, "Executables (*.exe)");
     if (exePath.isEmpty()) return;
 
     QFileInfo fi(exePath);
