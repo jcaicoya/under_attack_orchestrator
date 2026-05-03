@@ -73,18 +73,21 @@ void StageWindow::deactivate() {
 void StageWindow::showBlack() {
     m_stack->setCurrentIndex(0);
     m_content = Content::Black;
+    raise();
     emit contentChanged(m_content);
 }
 
 void StageWindow::showLogo() {
     m_stack->setCurrentIndex(1);
     m_content = Content::Logo;
+    raise();
     emit contentChanged(m_content);
 }
 
 void StageWindow::showVideo() {
     m_stack->setCurrentIndex(2);
     m_content = Content::Video;
+    raise();
     emit contentChanged(m_content);
 }
 

@@ -11,6 +11,11 @@
 #include <QFileInfo>
 #include <QKeyEvent>
 #include <QShowEvent>
+#include <QGuiApplication>
+#include <QScreen>
+#include <QJsonDocument>
+#include <QJsonObject>
+#include <QFile>
 
 // ---------- helpers ----------------------------------------------------------
 
@@ -122,6 +127,18 @@ void RehearsalModeScreen::buildUI() {
     stageLabel->setObjectName("FieldLabel");
     stageBar->addWidget(stageLabel);
 
+    m_screenCombo = new QComboBox(this);
+    m_screenCombo->setFocusPolicy(Qt::NoFocus);
+    m_screenCombo->setMinimumWidth(130);
+    stageBar->addWidget(m_screenCombo);
+
+    m_stageActivateBtn = new QPushButton("Activar", this);
+    m_stageActivateBtn->setFocusPolicy(Qt::NoFocus);
+    connect(m_stageActivateBtn, &QPushButton::clicked, this, &RehearsalModeScreen::onActivateStage);
+    stageBar->addWidget(m_stageActivateBtn);
+
+    stageBar->addSpacing(12);
+
     m_stageBlackBtn = new QPushButton("Pantalla negra", this);
     m_stageBlackBtn->setFocusPolicy(Qt::NoFocus);
     m_stageBlackBtn->setEnabled(false);
@@ -139,7 +156,7 @@ void RehearsalModeScreen::buildUI() {
     stageBar->addWidget(m_stageLogoBtn);
 
     stageBar->addStretch();
-    m_stageStatusLabel = new QLabel("Sin escenario", this);
+    m_stageStatusLabel = new QLabel("Inactivo", this);
     m_stageStatusLabel->setObjectName("MutedLabel");
     stageBar->addWidget(m_stageStatusLabel);
     root->addLayout(stageBar);
@@ -206,12 +223,15 @@ void RehearsalModeScreen::setStageWindow(StageWindow* stage) {
 
     connect(stage, &StageWindow::activated, this, [this](int idx) {
         m_mediaManager->setStageOutput(m_stageWindow->videoOutput());
+        m_stageActivateBtn->setText("Desactivar");
         m_stageBlackBtn->setEnabled(true);
         m_stageLogoBtn->setEnabled(true);
-        m_stageStatusLabel->setText(QString("Activo · Pantalla %1 · Negro").arg(idx));
+        m_stageStatusLabel->setText(QString("Activo · Pantalla %1").arg(idx + 1));
+        saveStageConfig(idx);
     });
     connect(stage, &StageWindow::deactivated, this, [this]() {
         m_mediaManager->setStageOutput(nullptr);
+        m_stageActivateBtn->setText("Activar");
         m_stageBlackBtn->setEnabled(false);
         m_stageLogoBtn->setEnabled(false);
         m_stageStatusLabel->setText("Inactivo");
@@ -225,24 +245,78 @@ void RehearsalModeScreen::setStageWindow(StageWindow* stage) {
             case StageWindow::Content::Video: suffix = "Video"; break;
         }
         m_stageStatusLabel->setText(
-            QString("Activo · Pantalla %1 · %2").arg(m_stageWindow->activeScreenIndex()).arg(suffix));
+            QString("Activo · Pantalla %1 · %2")
+                .arg(m_stageWindow->activeScreenIndex() + 1).arg(suffix));
     });
+}
 
-    updateStageControls();
+void RehearsalModeScreen::populateScreenCombo() {
+    const int saved = m_screenCombo->currentData().toInt();
+    m_screenCombo->blockSignals(true);
+    m_screenCombo->clear();
+    const auto screens = QGuiApplication::screens();
+    for (int i = 0; i < screens.size(); ++i)
+        m_screenCombo->addItem(
+            QString("Pantalla %1 (%2×%3)").arg(i + 1)
+                .arg(screens[i]->geometry().width())
+                .arg(screens[i]->geometry().height()),
+            i);
+    // restore saved or pick last screen as default
+    int idx = saved;
+    if (m_screenCombo->count() > 0) {
+        int defaultIdx = m_screenCombo->count() - 1;
+        for (int i = 0; i < m_screenCombo->count(); ++i)
+            if (m_screenCombo->itemData(i).toInt() == idx) { defaultIdx = i; break; }
+        m_screenCombo->setCurrentIndex(defaultIdx);
+    }
+    m_screenCombo->blockSignals(false);
+}
+
+void RehearsalModeScreen::onActivateStage() {
+    if (!m_stageWindow) return;
+    if (m_stageWindow->isActive()) {
+        m_stageWindow->deactivate();
+    } else {
+        int screenIdx = m_screenCombo->currentData().toInt();
+        m_stageWindow->activateOnScreen(screenIdx);
+    }
+}
+
+void RehearsalModeScreen::loadStageConfig() {
+    const QString path = QDir(m_packageRoot).filePath("config/stage.json");
+    QFile f(path);
+    if (!f.open(QIODevice::ReadOnly)) return;
+    const auto obj = QJsonDocument::fromJson(f.readAll()).object();
+    int idx = obj.value("screenIndex").toInt(0);
+    for (int i = 0; i < m_screenCombo->count(); ++i) {
+        if (m_screenCombo->itemData(i).toInt() == idx) {
+            m_screenCombo->setCurrentIndex(i);
+            break;
+        }
+    }
+}
+
+void RehearsalModeScreen::saveStageConfig(int screenIndex) {
+    const QString path = QDir(m_packageRoot).filePath("config/stage.json");
+    QJsonObject obj;
+    obj["screenIndex"] = screenIndex;
+    QFile f(path);
+    if (f.open(QIODevice::WriteOnly))
+        f.write(QJsonDocument(obj).toJson());
 }
 
 void RehearsalModeScreen::updateStageControls() {
-    if (!m_stageWindow || !m_stageWindow->isActive()) {
-        m_stageBlackBtn->setEnabled(false);
-        m_stageLogoBtn->setEnabled(false);
-        m_stageStatusLabel->setText(m_stageWindow ? "Inactivo" : "Sin escenario");
-        if (m_stageWindow)
-            m_mediaManager->setStageOutput(nullptr);
+    const bool active = m_stageWindow && m_stageWindow->isActive();
+    m_stageActivateBtn->setText(active ? "Desactivar" : "Activar");
+    m_stageBlackBtn->setEnabled(active);
+    m_stageLogoBtn->setEnabled(active);
+    m_screenCombo->setEnabled(!active);
+    if (!active) {
+        m_stageStatusLabel->setText("Inactivo");
+        if (m_stageWindow) m_mediaManager->setStageOutput(nullptr);
     } else {
-        m_stageBlackBtn->setEnabled(true);
-        m_stageLogoBtn->setEnabled(true);
         m_stageStatusLabel->setText(
-            QString("Activo · Pantalla %1").arg(m_stageWindow->activeScreenIndex()));
+            QString("Activo · Pantalla %1").arg(m_stageWindow->activeScreenIndex() + 1));
         m_mediaManager->setStageOutput(m_stageWindow->videoOutput());
     }
 }
@@ -489,6 +563,8 @@ void RehearsalModeScreen::keyPressEvent(QKeyEvent* event) {
 void RehearsalModeScreen::showEvent(QShowEvent* event) {
     QWidget::showEvent(event);
     setFocus();
+    populateScreenCombo();
+    loadStageConfig();
     updateStageControls();
     syncAndRefresh();
 }

@@ -3,6 +3,7 @@
 #include <QTableWidget>
 #include <QTextEdit>
 #include <QPushButton>
+#include <QComboBox>
 #include <QLabel>
 #include "AppConfig.h"
 #include "AppManager.h"
@@ -38,6 +39,10 @@ private:
     void updateRow(int row);
     void updateNavButtons();
     void updateStageControls();
+    void populateScreenCombo();
+    void onActivateStage();
+    void loadStageConfig();
+    void saveStageConfig(int screenIndex);
     int  rowForRef(const QString& type, const QString& id) const;
 
     void activateScene(int row);
@@ -56,10 +61,12 @@ private:
     AppManager*    m_appManager   = nullptr;
     MediaManager*  m_mediaManager = nullptr;
 
-    StageWindow*   m_stageWindow      = nullptr;
-    QPushButton*   m_stageBlackBtn    = nullptr;
-    QPushButton*   m_stageLogoBtn     = nullptr;
-    QLabel*        m_stageStatusLabel = nullptr;
+    StageWindow*   m_stageWindow       = nullptr;
+    QComboBox*     m_screenCombo       = nullptr;
+    QPushButton*   m_stageActivateBtn  = nullptr;
+    QPushButton*   m_stageBlackBtn     = nullptr;
+    QPushButton*   m_stageLogoBtn      = nullptr;
+    QLabel*        m_stageStatusLabel  = nullptr;
 
     QTableWidget*  m_table        = nullptr;
     QPushButton*   m_prevBtn      = nullptr;
