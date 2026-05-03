@@ -140,6 +140,9 @@ void AppManager::start(const QString& id) {
         } else if (status == QProcess::CrashExit) {
             if (rt.state != AppState::Error)
                 setState(id, AppState::Error);
+        } else if (exitCode == 0) {
+            emit logMessage(QString("%1 closed.").arg(name));
+            setState(id, AppState::Stopped);
         } else {
             emit logMessage(QString("%1 exited unexpectedly (code %2).").arg(name).arg(exitCode));
             setState(id, AppState::Error);

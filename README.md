@@ -1,243 +1,164 @@
-# Cybershow Orchestrator
+# BAJO ATAQUE — Orchestrator
 
-Versión: 0.2  
-Estado: activo — modo ENSAYO (Rehearsal) implementado.
-
-Centro de control del show Cybershow. Lanza, supervisa y detiene las aplicaciones del show desde una única consola.
-
-Para el contexto completo del proyecto ver `CLAUDE.md`.  
-Para el plan de refactorización en curso ver `next-steps.md`.
-
-Este archivo contiene las instrucciones específicas del orquestador según el estándar Cybershow. Debe leerse junto a:
-
-- `cybershow_app_standards_v0_3/CYBERSHOW_APP_CONVENTIONS.md`
-- `cybershow_app_standards_v0_3/QT_APP_LOOK_AND_FEEL.md`
-- `cybershow_app_standards_v0_3/ORCHESTRATOR_VISUAL_AND_OPERATION.md`
+Centro de control del show de ciberseguridad en vivo "Bajo Ataque".
+Lanza, supervisa y coordina las aplicaciones del show, vídeos y el escenario proyectado desde un único panel de operador.
 
 ---
 
-## 1. Identidad de la aplicación
+## Overview
 
-- **Nombre visible:** CYBERSHOW / Centro de control
-- **Nombre interno:** orchestrator
-- **Ejecutable:** orchestrator.exe
-- **Rol dentro del show:** aplicación de control y lanzamiento. No es una app escénica.
-- **Tipo principal:** operativa (control de operador)
+The orchestrator is **not** a simple launcher. It is the control cabin for a live cybersecurity performance. It manages:
 
----
+- External show applications (each a self-contained Windows executable with its own DLLs)
+- Video playback routed to a secondary projector screen
+- A fullscreen stage window (logo / black / video) on the projector
+- A rundown of scenes (apps + media) for rehearsal and live show
 
-## 2. Pantallas del orquestador
+Three operating modes:
 
-El orquestador no usa la navegación estándar por escenas. Su estructura es:
-
-| Nº | ID | Título largo | Título corto | Tipo | Notas |
-|---:|---|---|---|---|---|
-| — | selector | Selector de modo | Selector | operative | Pantalla inicial. No numerada. |
-| 1 | configurar | Configurar | Configurar | operative | Control y lanzamiento de apps con `--configure`. |
-| 2 | ensayo | Ensayo | Ensayo | operative | Ensayo técnico. Apps con `--design`. Rundown editable. |
-| 3 | show | Show | Show | operative | Previsto. Deshabilitado. |
+| Mode | Purpose |
+|---|---|
+| **CONFIGURAR** | Prepare the show: add/edit apps and media, test launch/stop, activate stage screen |
+| **ENSAYO** | Rehearse: reorder the rundown, launch anything manually, play videos |
+| **SHOW** | Run the show: navigate scenes in order with Anterior / Activar / Siguiente |
 
 ---
 
-## 3. Pantalla inicial: ModeSelectorScreen
+## Navigation & keyboard shortcuts
 
-La pantalla inicial no es un setup estándar. Es un selector de modo de operación.
+### Mode selector (startup screen)
 
-Elementos:
-- Título: **CYBERSHOW**
-- Subtítulo: *Centro de control*
-- Tres tarjetas de modo: CONFIGURAR, ENSAYO, SHOW
-- SHOW deshabilitado con etiqueta "próximamente"
-- Estado general / perfil en la parte inferior (futuro)
+| Key | Action |
+|---|---|
+| `1` | Open CONFIGURAR |
+| `2` | Open ENSAYO |
+| `3` | Open SHOW |
+| `←` / `→` | Move focus between mode cards |
+| `Enter` / `Space` | Open focused mode |
 
-Navegación en el selector:
-- `1` → selecciona y abre CONFIGURAR
-- `2` → selecciona y abre ENSAYO
-- `3` → enfoca SHOW (deshabilitado, no abre)
-- `←` / `→` → cambia tarjeta enfocada
-- `Enter` / `Espacio` → abre la tarjeta enfocada si está disponible
-- Click → abre la tarjeta pulsada si está disponible
+### Inside any mode screen
+
+| Key | Action |
+|---|---|
+| `Esc` | Return to mode selector |
+| `1` | Switch to CONFIGURAR |
+| `2` | Switch to ENSAYO |
+| `3` | Switch to SHOW |
+| `←` | Switch to previous mode (ENSAYO → CONFIGURAR, SHOW → ENSAYO) |
+| `→` | Switch to next mode (CONFIGURAR → ENSAYO, ENSAYO → SHOW) |
+
+### SHOW mode additional keys
+
+| Key | Action |
+|---|---|
+| `→` / `Space` | Next scene |
+| `Enter` | Activate current scene |
+
+### Stage screen (projector window)
+
+| Key | Action |
+|---|---|
+| `Esc` | Deactivate stage (closes projector window) |
 
 ---
 
-## 4. Pantalla de modo: ConfigureModeScreen
+## Stage screen
 
-Pantalla de tipo dashboard operativo. Muestra y controla las aplicaciones del show.
+The stage window is a fullscreen borderless window on a secondary screen (projector).
 
-Elementos:
-- Título: **Configurar**
-- Panel de aplicaciones: lista de apps con estado y acciones
-- Panel de registro de eventos (log)
-- Indicación de navegación: *Esc: volver al selector*
+**Activating:**
+1. In any mode screen, the "Escenario" row shows a screen selector combo and an "Activar" button — but only when two or more screens are detected.
+2. Select the target screen (typically Pantalla 2) and press **Activar**.
+3. The stage window opens on the selected screen showing the BAJO ATAQUE logo.
+4. Press **Desactivar** to close it.
 
-Estados de proceso (en español):
+**Automatic stage content:**
+- Logo shown on activation and whenever nothing is playing.
+- When a video plays, a fullscreen video window overlays the stage screen.
+- When an app runs, the stage window hides so the app can appear on the projector; when the app stops, the logo returns.
 
-| Estado interno | Etiqueta visible | Color |
+**Single-screen:** if only one screen is detected, the Escenario controls are hidden and the stage cannot be activated (avoids blacking out the operator screen).
+
+---
+
+## Requirements & constraints
+
+| Item | Requirement |
+|---|---|
+| OS | Windows 10/11 64-bit |
+| Runtime | Visual C++ Redistributable (install once on each machine) |
+| Qt | 6.7.3 — bundled in the zip, no global install needed |
+| Multimedia | FFmpeg backend — bundled DLLs in the zip |
+| External apps | Must be self-contained (exe + DLLs) in their own folder under `apps/` |
+| Paths | All paths relative to the package root — never hardcoded absolute paths |
+| Config | JSON files in `config/` — created automatically on first run |
+| Logs | Written to console and log panel — file logging can be added later |
+
+**Package structure:**
+
+```
+orchestrator.exe
+config/           ← generated at runtime (apps.json, media.json, rundown.json, stage.json)
+apps/             ← external show apps, each self-contained
+media/            ← video and audio files
+sounds/           ← (reserved)
+lights/           ← (reserved)
+logs/             ← (reserved)
+tools/            ← (reserved)
+```
+
+**DLL policy:** each external app must have its own copy of Qt DLLs next to its executable. Do not share DLLs between apps. Robustness for live performance beats disk efficiency.
+
+---
+
+## Making a release zip
+
+```powershell
+.\package-release.ps1
+```
+
+- Requires PowerShell 7+ (`pwsh`). Run from the project root.
+- Builds the Release configuration in CMake.
+- Bundles `orchestrator.exe` + all required Qt and FFmpeg DLLs + plugins.
+- Creates `dist\cybershow-orchestrator-vNN.zip` (zero-padded incrementing version).
+- Appends an entry to `releases.json` and creates a git tag.
+- Use `-Force` to skip the uncommitted-changes check.
+- After packaging: `git push --tags` to push the tag to the remote.
+
+**Bundled DLLs:** Qt6Core, Qt6Gui, Qt6Widgets, Qt6Multimedia, Qt6MultimediaWidgets, Qt6Network, Qt6OpenGL + FFmpeg (avcodec, avformat, avutil, swresample, swscale) + `plugins/platforms/qwindows.dll` + `plugins/multimedia/` (FFmpeg backend).
+
+**Target machine:** copy the zip, extract, run `orchestrator.exe`. No installer needed.
+
+---
+
+## Look & feel summary
+
+**Theme:** dark, technical, cyber. Black deep background, subtle grid lines, cold blue/green accents. Operator-focused — readable on laptop and projector.
+
+**Palette:**
+
+| Role | Color |
+|---|---|
+| Background | `#0A0C10` |
+| Panel background | `#101318` |
+| Border | `#293241` |
+| Text primary | `#C8D6E5` |
+| Text muted | `#5F6B78` |
+| Accent blue | `#00BFFF` |
+| Accent green | `#00FF55` |
+| Warning | `#FFB000` |
+| Error / danger | `#FF3347` |
+
+**State colors in tables:**
+
+| State | Label | Color |
 |---|---|---|
-| Stopped | LISTA | gris `#5F6B78` |
-| Starting | EJECUTÁNDOSE | ámbar `#FFB000` |
-| Running | EJECUTÁNDOSE | verde `#00FF55` |
-| Stopping | EJECUTÁNDOSE | ámbar `#FFB000` |
-| Error | ERROR | rojo `#FF3347` |
+| Stopped | LISTA | muted grey |
+| Starting / Stopping | EJECUTÁNDOSE | amber |
+| Running | EJECUTÁNDOSE | green |
+| Playing (media) | REPRODUCIENDO | green |
+| Error | ERROR | red |
 
-Acciones de proceso (en español):
-- **Iniciar** — lanza la app con los argumentos del modo actual
-- **Parar** — termina el proceso
-- **Parar todo** — para todas las apps
+**Language:** operator UI in Spanish. Code, identifiers, comments, and config keys in English.
 
-Navegación:
-- `Esc` → vuelve al selector de modo
-
----
-
-## 5. Pantalla de modo: RehearsalModeScreen (ENSAYO)
-
-Pantalla de ensayo técnico. Muestra todos los recursos (apps y multimedia) en un único rundown ordenable.
-
-Elementos:
-- Título: **ENSAYO**
-- Tabla de rundown: orden personalizable, casilla habilitado/deshabilitado por fila, acciones por fila
-- Botón **Parar todo** — para todas las apps y todos los medios
-- Panel de registro de eventos
-
-Columnas de la tabla:
-
-| Col | Contenido |
-|---|---|
-| ▲▼ | Botones de reordenación |
-| Nombre | Nombre del recurso (app o multimedia) |
-| Tipo | `APP` / `VIDEO` / `AUDIO` con color |
-| ✓ | Checkbox de habilitado (persiste en `rundown.json`) |
-| Acción | `Iniciar` (apps) o `Reproducir` (multimedia) |
-| Parar | Para el recurso individual |
-| Estado | Estado actual del proceso o reproducción |
-
-Comportamiento al abrir:
-1. Recarga las bibliotecas de apps y multimedia desde sus configs.
-2. Carga `config/rundown.json`. Si no existe, lo crea vacío.
-3. Sincroniza el rundown con las bibliotecas: añade entradas nuevas (deshabilitadas) y elimina referencias rotas.
-4. Guarda el rundown actualizado.
-
-Config del rundown (`config/rundown.json`): lista ordenada de `{ "type": "app"|"media", "ref": "<id>", "enabled": true|false }`.
-
-Apps lanzadas con argumento `--design`.
-
-Navegación:
-- `Esc` → vuelve al selector de modo
-
----
-
-## 6. Modos del orquestador y argumento de lanzamiento
-
-| Modo orquestador | Argumento pasado a apps |
-|---|---|
-| Configurar | `--configure` |
-| Diseño | `--design` |
-| Show | `--show` |
-
----
-
-## 7. Integración con el orquestador (el propio orquestador como cliente)
-
-El orquestador no es lanzado por otro orquestador. No procesa argumentos de arranque estándar (`--configure`, `--show`, etc.) para sí mismo.
-
-El orquestador sí emite mensajes `CYBERSHOW_*` para posibles integraciones futuras (logging central, monitorización remota).
-
----
-
-## 8. Excepciones al estándar común
-
-Las siguientes reglas del estándar común **no aplican** al orquestador, por diseño:
-
-| Regla estándar | Excepción del orquestador |
-|---|---|
-| Pantalla inicial es Setup (`--configure`) | La pantalla inicial es ModeSelectorScreen, no un setup |
-| `Esc` vuelve a Setup | `Esc` vuelve al selector de modo |
-| `1`-`9` cambian pantalla de ejecución | `1`-`3` seleccionan modo en el selector |
-| Barra inferior de navegación por escenas | No existe; el orquestador no navega entre escenas |
-| Acepta `--configure` / `--show` como args propios | No aplica; el orquestador los pasa a las apps hijas |
-| Navegación `←`/`→` entre escenas | `←`/`→` cambian tarjeta enfocada en el selector |
-
----
-
-## 9. Checklist de refactorización
-
-- [x] Usa `CyberBackgroundWidget` como base de ventana.
-- [x] Usa paleta y botones de `CyberTheme`.
-- [x] No tiene pantalla de setup estándar.
-- [x] Tiene `ModeSelectorScreen` como pantalla inicial.
-- [x] CONFIGURAR disponible y funcional.
-- [x] ENSAYO disponible y funcional (RehearsalModeScreen con rundown).
-- [x] SHOW deshabilitado con indicación visual.
-- [x] `1`, `2`, `3` seleccionan modos en el selector.
-- [x] `Enter` y `Espacio` abren el modo seleccionado.
-- [x] `←` / `→` cambian tarjeta enfocada en el selector.
-- [x] `Esc` desde modo vuelve al selector.
-- [x] `Alt+F4` cierra la aplicación (comportamiento estándar del SO).
-- [x] Sin barra inferior de escenas.
-- [x] Apps lanzadas con `--configure` desde modo CONFIGURAR.
-- [x] La arquitectura permite añadir `--design` y `--show` más adelante.
-- [x] Estados de proceso en español.
-- [x] Textos de operador en español.
-- [x] Errores visibles y comprensibles para el operador.
-- [x] Compila sin errores.
-- [x] Arranca y muestra el selector de modo.
-- [x] Navegación teclado probada.
-- [x] Probado en portátil de desarrollo.
-
----
-
-## 10. Estructura del proyecto
-
-```
-orchestrator/
-├── src/
-│   ├── main.cpp
-│   ├── Logger.{h,cpp}
-│   ├── AppConfig.{h,cpp}          ← lista de apps del show
-│   ├── AppManager.{h,cpp}         ← ciclo de vida de procesos (QProcess)
-│   ├── MediaConfig.{h,cpp}        ← lista de archivos multimedia
-│   ├── MediaManager.{h,cpp}       ← reproducción con Qt Multimedia + FFmpeg
-│   ├── RundownConfig.{h,cpp}      ← rundown ordenado (apps + media)
-│   ├── MainWindow.{h,cpp}
-│   └── ui/
-│       ├── CyberTheme.{h,cpp}
-│       ├── CyberBackgroundWidget.{h,cpp}
-│       ├── CyberPanel.{h,cpp}
-│       ├── ModeSelectorScreen.{h,cpp}
-│       ├── ConfigureModeScreen.{h,cpp}
-│       └── RehearsalModeScreen.{h,cpp}
-├── resources/
-│   └── apps_default.json          ← plantilla embebida (Qt resource)
-├── resources.qrc
-├── CMakeLists.txt
-├── dist/                          ← zips de release (gitignored)
-└── releases.json
-```
-
-Archivos de configuración generados en tiempo de ejecución (junto al `.exe`):
-
-| Archivo | Descripción |
-|---|---|
-| `config/apps.json` | Lista de apps. Copiado de la plantilla embebida si no existe. |
-| `config/media.json` | Lista de archivos multimedia. Creado vacío si no existe. |
-| `config/rundown.json` | Rundown ordenado. Generado/sincronizado al abrir modo ENSAYO. |
-
----
-
-## 11. Packaging
-
-Script: `package-release.ps1`  
-Tracking file: `releases.json` (committed to git)  
-Output folder: `dist\` (gitignored)  
-Zip naming: `cybershow-orchestrator-vNN.zip` (zero-padded, incrementing)
-
-Workflow:
-- `.\package-release.ps1` — builds Release, zips, appends to `releases.json`, creates git tag
-- `.\package-release.ps1 -Force` — same but skips commit-change check
-- `git push --tags` — push tags to remote after packaging
-
-Zip contents: `orchestrator.exe` + Qt6 DLLs (Core/Gui/Widgets/Multimedia/MultimediaWidgets/Network/OpenGL) + FFmpeg DLLs (avcodec/avformat/avutil/swresample/swscale) + `plugins/platforms/qwindows.dll` + `plugins/multimedia/` (FFmpeg backend)  
-+ empty placeholder folders: `config/`, `apps/`, `media/`, `sounds/`, `lights/`, `logs/`, `tools/`
-
-Target machine requires Visual C++ Redistributable (install once).
+**Stage logo (projector):** "BAJO ATAQUE" in red `#FF2020`, 80px bold, wide letter-spacing. Subtitle "en vivo" in dark red `#3A1010`.

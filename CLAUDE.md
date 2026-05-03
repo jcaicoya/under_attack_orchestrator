@@ -1,1115 +1,345 @@
-# Cybershow Orchestrator — Development Context
+# Cybershow Orchestrator — AI Assistant Context
 
-> Working context file for ChatGPT, Codex, Claude or any coding assistant.
+> Working context for Claude, Codex, Gemini, or any coding assistant.
 > Keep this file updated as the project evolves.
->
-> Suggested filename: `CYBERSHOW_ORCHESTRATOR.md`
->
-> If using Claude, this content can also be copied or symlinked to `CLAUDE.md`.
 
 ---
 
 ## 1. Project Summary
 
-We are building a **desktop orchestrator/console** for a live cybersecurity show called **Cybershow**.
+Desktop orchestrator for a live cybersecurity show called **Bajo Ataque**.
 
-The show uses several C++/Qt desktop applications, one or more Android applications, videos, sounds, and later lighting. The orchestrator is not just a launcher: it should become the **control cabin** for the show.
+The orchestrator is the **control cabin** for the show. It launches, monitors, and coordinates
+external show applications, video playback, and a fullscreen stage window on a secondary screen
+(projector). Built in C++23 / Qt 6.7.3 / CMake for Windows, compiled with MSVC.
 
-The core idea:
-
-> The orchestrator does not merely launch applications.  
-> It activates and supervises show scenes.
-
-The show currently includes or will include:
-
-1. Desktop app to interact with a mobile phone.
-2. Android app to interact with the previous desktop app.
-3. Desktop app to change QR codes.
-4. Desktop app for the public Wi-Fi / “we cannot decrypt WhatsApp” section.
-5. Desktop app for the password oracle.
-6. Desktop app to generate phishing messages and send them to the phone.
-7. Android app to interact with the phishing desktop app.
-8. Two videos before the show starts.
-9. One video at the end.
-10. Later: sounds/music.
-11. Later: lighting control.
-
-Some apps already exist as Windows executables. Others, such as the password oracle and phishing generator, have not yet been started. This is a good time to define the orchestrator architecture so new apps can be built to fit it.
+The show uses several C++/Qt Windows executables, videos, and later sounds/lighting. The
+orchestrator does not merely launch apps — it activates and supervises show scenes.
 
 ---
 
-## 2. Main Architectural Decision
+## 2. Repository Layout
 
-We do **not** want one giant monolithic application containing all show logic.
-
-We also do **not** want a collection of unrelated apps manually opened and closed during the show.
-
-The chosen architecture is hybrid:
-
-```text
-Cybershow Orchestrator / Console
-├── Launches existing executable apps
-├── Passes configuration and launch parameters
-├── Starts/stops/restarts apps
-├── Later: positions apps on the projector/stage screen
-├── Later: plays videos
-├── Later: plays sounds
-├── Later: triggers lighting presets
-├── Later: controls scenes
-└── Later: communicates with the mobile companion app
 ```
-
-The Android side should eventually become a single **mobile companion app** with modes, rather than separate mobile apps per show section.
+orchestrator/
+├── CMakeLists.txt
+├── package-release.ps1          # Release packaging (requires pwsh 7+)
+├── README.md                    # Operator documentation
+├── CLAUDE.md                    # This file
+├── config/                      # Runtime-generated JSON (created on first run)
+│   ├── apps.json
+│   ├── media.json
+│   ├── rundown.json
+│   └── stage.json
+├── apps/                        # External show apps, each self-contained
+├── media/                       # Video/audio files
+├── resources/                   # Qt resources (icons, default config templates)
+└── src/
+    ├── main.cpp
+    ├── MainWindow.h / .cpp
+    ├── AppConfig.h / .cpp        # apps.json schema + load/save
+    ├── AppManager.h / .cpp       # QProcess lifecycle for external apps
+    ├── MediaConfig.h / .cpp      # media.json schema + load/save
+    ├── MediaManager.h / .cpp     # QMediaPlayer + standalone video widget
+    ├── RundownConfig.h / .cpp    # rundown.json — ordered scene list
+    ├── StageWindow.h / .cpp      # Fullscreen projector window
+    ├── Logger.h / .cpp           # Log panel messages
+    └── ui/
+        ├── CyberTheme.h / .cpp           # Palette constants + global stylesheet
+        ├── CyberBackgroundWidget.h/.cpp  # Animated grid background
+        ├── CyberPanel.h / .cpp           # Styled panel widget
+        ├── ModeSelectorScreen.h / .cpp   # Startup mode selector (stack index 0)
+        ├── ConfigureModeScreen.h / .cpp  # Configure mode (stack index 1)
+        ├── RehearsalModeScreen.h / .cpp  # Ensayo mode (stack index 2)
+        └── ShowModeScreen.h / .cpp       # Show/live mode (stack index 3)
+```
 
 ---
 
-## 3. Development Language / Stack
+## 3. Architecture
 
-The orchestrator will be a **C++/Qt desktop application**, built with **CMake**.
+### 3.1 Main window stack
 
-Initial target platform:
+`MainWindow` owns a `QStackedWidget` with four screens:
 
-```text
-Windows
-C++ / Qt
-CMake
-Portable folder-based distribution
+| Index | Screen | Description |
+|---|---|---|
+| 0 | `ModeSelectorScreen` | Startup / mode picker |
+| 1 | `ConfigureModeScreen` | Prepare the show (CONFIGURAR) |
+| 2 | `RehearsalModeScreen` | Manual rehearsal control (ENSAYO) |
+| 3 | `ShowModeScreen` | Live scene-by-scene execution (SHOW) |
+
+Each mode screen emits `returnToSelector()` and `switchMode(int)` that `MainWindow` connects to
+the stack. Keyboard navigation: `Esc` = back to selector, `1`/`2`/`3` = jump to mode,
+`←`/`→` = previous/next mode.
+
+### 3.2 StageWindow
+
+`StageWindow` is a separate top-level `QWidget` (not in the main stack). It is a fullscreen
+borderless window placed on the projector/secondary screen.
+
+```cpp
+enum class Content { Black, Logo };
 ```
 
-The user will create the initial CMake/Qt HelloWorld project.
-
----
-
-## 4. Orchestrator Modes
-
-The orchestrator will have three modes from the beginning, even if they initially behave the same:
-
-```text
-Configuration
-Rehearsal
-Live
-```
-
-Use **Rehearsal**, not “Demo”. “Demo” sounds like a reduced commercial/demo mode; “Rehearsal” better describes the operational purpose.
-
-### 4.1 Configuration Mode
-
-Purpose:
-
-```text
-Prepare and validate the show setup.
-```
-
-Used at home and during pre-show preparation.
-
-Responsibilities:
-
-```text
-- Detect/list configured applications.
-- Edit executable paths.
-- Edit working directories.
-- Edit launch arguments.
-- Edit mode-specific arguments.
-- Validate that configured paths exist.
-- Launch an app manually to test it.
-- Stop/restart an app manually to test it.
-- Later: configure projector/stage screen.
-- Later: configure video/sound/lighting resources.
-```
-
-This mode prepares the show. It is not meant to run the live performance.
-
-### 4.2 Rehearsal Mode
-
-Purpose:
-
-```text
-Manual control for testing, rehearsing, and repeating parts of the show.
-```
-
-This will likely be the most used mode during development and rehearsal.
-
-Responsibilities:
-
-```text
-- Start/stop/restart apps using the stored configuration.
-- Play videos manually.
-- Later: trigger sounds manually.
-- Later: trigger lighting presets manually.
-- Repeat transitions.
-- Jump to a specific section.
-- Test the mobile connection.
-- Test stage output.
-- Provide emergency controls.
-```
-
-### 4.3 Live Mode
-
-Purpose:
-
-```text
-Run the show using scenes, with minimal and safe controls.
-```
-
-Responsibilities:
-
-```text
-- Activate scenes.
-- Prepare next scene.
-- Move forward/backward through the show.
-- Trigger app/video/sound/light actions.
-- Show scene/app status.
-- Provide emergency controls.
-```
-
-Live mode should not expose too many controls. In live performance, fewer buttons are safer.
-
----
-
-## 5. Packaging Philosophy
-
-Packaging must work from the beginning.
-
-Do **not** postpone packaging until the end. Each development phase should end with a portable package that can be tested on:
-
-```text
-- Main laptop
-- Rehearsal/backup laptop
-```
-
-Preferred distribution model:
-
-```text
-Portable folder, not installer-first.
-```
-
-The user wants to distribute the orchestrator among several laptops. The package should be copyable as a folder.
-
-### 5.1 Recommended Package Structure
-
-```text
-CybershowPackage/
-├── CybershowConsole.exe
-├── config/
-│   └── apps.json
-├── apps/
-│   ├── MobileBridge/
-│   │   ├── MobileBridge.exe
-│   │   ├── Qt6Core.dll
-│   │   ├── Qt6Gui.dll
-│   │   ├── Qt6Widgets.dll
-│   │   └── platforms/
-│   │       └── qwindows.dll
-│   │
-│   ├── QRChanger/
-│   │   ├── QRChanger.exe
-│   │   ├── Qt6Core.dll
-│   │   ├── Qt6Gui.dll
-│   │   ├── Qt6Widgets.dll
-│   │   └── platforms/
-│   │       └── qwindows.dll
-│   │
-│   └── PublicWifi/
-│       ├── PublicWifi.exe
-│       ├── Qt6Core.dll
-│       ├── Qt6Gui.dll
-│       ├── Qt6Widgets.dll
-│       └── platforms/
-│           └── qwindows.dll
-│
-├── media/
-│   ├── intro_1.mp4
-│   ├── intro_2.mp4
-│   └── final.mp4
-│
-├── sounds/
-├── lights/
-├── logs/
-└── tools/
-```
-
-The `sounds/`, `lights/`, and `tools/` folders can initially be empty.
-
----
-
-## 6. Important DLL Decision
-
-Existing applications are executables with DLLs next to them.
-
-The orchestrator must launch each application using the correct **working directory**, otherwise Qt DLLs/plugins may not be found.
-
-Each app should be treated as a self-contained package:
-
-```text
-apps/PublicWifi/
-├── PublicWifi.exe
-├── required DLLs
-├── platforms/
-└── other resources
-```
-
-Do **not** rely on global PATH or a global Qt installation.
-
-### 6.1 Do Not Store Executables/DLLs as Qt Resources
-
-Do **not** embed external executables and their DLLs as Qt resources inside the orchestrator.
-
-Reasons:
-
-```text
-- Windows cannot directly execute an .exe from Qt resources.
-- They would have to be extracted to disk first.
-- This complicates updates, antivirus behavior, permissions and cleanup.
-- Resources are better suited for icons, templates, small JSON files, styles, etc.
-```
-
-Correct approach:
-
-```text
-Use a controlled external `apps/` folder inside the portable package.
-```
-
-### 6.2 Duplicate DLLs Per App Initially
-
-Prefer:
-
-```text
-apps/QRChanger/Qt6Core.dll
-apps/PublicWifi/Qt6Core.dll
-apps/MobileBridge/Qt6Core.dll
-```
-
-over a shared DLL folder, at least initially.
-
-Reason:
-
-```text
-Robustness is more important than disk space for a live show.
-```
-
-Each app remains autonomous and less likely to break when another app changes.
-
----
-
-## 7. Configuration Files
-
-Use **JSON** initially, not YAML.
-
-Reason:
-
-```text
-- Qt has native JSON support.
-- JSON is predictable.
-- YAML adds dependency and indentation complexity.
-```
-
-### 7.1 Resource vs External Config
-
-Use Qt resources only for defaults/templates.
-
-Recommended behavior:
-
-```text
-1. On startup, look for `config/apps.json` next to the executable.
-2. If it exists, load it.
-3. If it does not exist, copy a default template from Qt resources.
-4. Then use the external editable file.
-```
-
-This gives both:
-
-```text
-- Good first-run behavior.
-- Editable real configuration without recompilation.
-```
-
-### 7.2 Paths
-
-Use paths relative to the orchestrator package root.
-
-Good:
-
-```json
-"executable": "apps/QRChanger/QRChanger.exe"
-```
-
-Avoid absolute user-specific paths:
-
-```json
-"executable": "C:/Users/Someone/Desktop/Cybershow/apps/QRChanger/QRChanger.exe"
-```
-
-### 7.3 Proposed Initial App Config Schema
-
-This schema is intentionally more complete than Phase 1 needs, so later phases do not require a redesign.
-
-```json
-{
-  "version": 1,
-  "apps": [
-    {
-      "id": "public_wifi",
-      "name": "Wi-Fi pública",
-      "description": "Demo de red Wi-Fi pública y WhatsApp",
-      "enabled": true,
-
-      "executable": "apps/PublicWifi/PublicWifi.exe",
-      "workingDirectory": "apps/PublicWifi",
-
-      "arguments": [],
-      "configurationArguments": [],
-      "rehearsalArguments": [],
-      "liveArguments": [],
-
-      "startupPolicy": "manual",
-      "closePolicy": "terminateThenKill",
-
-      "expectedWindowTitle": "Cybershow - Public Wi-Fi",
-      "category": "demo"
-    }
-  ]
+Key public slots: `showBlack()`, `showLogo()`, `softHide()`, `softShow()`.
+
+- `softHide()` hides the window **without** emitting `deactivated` — used just before an app
+  appears on the projector. `softShow()` restores it and shows the logo.
+- Video is **not** rendered inside StageWindow (see §3.4).
+- Stage controls (screen combo + Activar/Desactivar button) are hidden when only one screen is
+  detected — avoids accidentally blacking out the only screen.
+
+**Critical: pinning to the correct screen**
+
+```cpp
+static void pinToScreen(QWidget* w, QScreen* screen) {
+    w->winId();  // forces native HWND; windowHandle() is valid after this
+    if (auto* wh = w->windowHandle())
+        wh->setScreen(screen);
 }
 ```
 
-Fields:
+Call `pinToScreen()` before `showFullScreen()`. Without it, Windows always opens a never-shown
+widget on the primary monitor the first time, regardless of `setGeometry()`.
 
-```text
-id                         Stable internal id.
-name                       User-visible name.
-description                Optional explanation.
-enabled                    Whether app is visible/usable.
-executable                 Relative path to .exe.
-workingDirectory           Relative path used to launch the app.
-arguments                  Common arguments.
-configurationArguments     Arguments used in Configuration mode.
-rehearsalArguments         Arguments used in Rehearsal mode.
-liveArguments              Arguments used in Live mode.
-startupPolicy              Initially manual.
-closePolicy                Initially terminateThenKill.
-expectedWindowTitle        Useful later for projector/window management.
-category                   Optional grouping.
+**Never use `QWidget::create()` — it is protected in Qt 6. Always use `winId()` instead.**
+
+### 3.3 AppManager
+
+Manages `QProcess` lifecycle for external show executables.
+
+```cpp
+enum class AppState { Stopped, Starting, Running, Stopping, Error };
+enum class ShowMode  { Configure, Design, Show };
 ```
 
-Apps may ignore arguments initially. New apps should be built to accept them from the start.
+- Each app is launched with its own `workingDirectory` so DLL/plugin lookup works.
+- `setMode(ShowMode)` selects which argument set (`configurationArguments` / `rehearsalArguments`
+  / `liveArguments`) is appended at launch time.
+- `setStageGeometry(QRect)` passes the projector screen geometry; `scheduleWindowMove()` uses
+  Windows API (`EnumWindows` + `SetWindowPos`) to move the app window to the projector after
+  it starts.
+- Close policy: polite `terminate()` → 3 s kill timer → `kill()`.
+
+### 3.4 MediaManager — standalone video widget
+
+Video is **not** embedded in `StageWindow` or any `QStackedWidget`. Embedding was unreliable
+across screens with the FFmpeg backend. Instead, `MediaManager` creates a top-level
+`QVideoWidget` with `Qt::Window | Qt::FramelessWindowHint | Qt::WindowStaysOnTopHint` and
+pins it directly to the stage screen geometry.
+
+```cpp
+void MediaManager::setStageGeometry(const QRect& geo);
+```
+
+Call this whenever the stage activates (connect to `StageWindow::activated`). When `play()`
+is called and stage geometry is set, the manager:
+1. Creates a standalone `QVideoWidget` (once per media runtime).
+2. Calls `winId()` to force native window, then `windowHandle()->setScreen(targetScreen)`.
+3. Sets geometry = stage screen geometry, then `show()` + `raise()`.
+
+When video stops, the mode screen calls `m_stageWindow->showLogo()`.
+
+### 3.5 RundownConfig
+
+`config/rundown.json` holds an ordered flat list of scene references:
+
+```json
+[
+  {"type": "app",   "ref": "my_app_id"},
+  {"type": "media", "ref": "my_video_id"}
+]
+```
+
+`syncWithLibraries(appIds, mediaIds)` adds new entries not yet in the rundown and removes
+stale refs. Both `RehearsalModeScreen` and `ShowModeScreen` call this on `showEvent`.
+
+### 3.6 Automatic logo
+
+Logo shows automatically — there is no explicit logo/black button in the operator UI.
+It is triggered:
+- On stage activation (`StageWindow::activated` signal).
+- When video playback stops (`MediaState::Stopped`).
+- When an app stops (after `softShow()` restores the stage window).
+- When stop-all is invoked.
 
 ---
 
-## 8. Launching External Apps
+## 4. Config Files
 
-Use Qt’s process-launching mechanism, e.g. `QProcess`.
+All paths relative to the package root (the directory containing `orchestrator.exe`).
 
-Required behavior:
+| File | Purpose |
+|---|---|
+| `config/apps.json` | Registered show applications |
+| `config/media.json` | Registered video/audio files |
+| `config/rundown.json` | Ordered scene list (flat array, no enabled flag) |
+| `config/stage.json` | Last-used projector screen index |
 
-```text
-- Start app.
-- Stop app.
-- Restart app.
-- Stop all apps.
-- Track basic state.
-- Handle failed starts.
-- Detect when an app exits.
-- Avoid launching duplicate instances unless explicitly allowed.
-```
-
-Basic states:
-
-```text
-Stopped
-Starting
-Running
-Stopping
-Error
-```
-
-Later states:
-
-```text
-Hidden
-Visible
-OnProjector
-Crashed
-Preparing
-Ready
-Active
-```
-
-Closing policy:
-
-```text
-1. Try polite termination.
-2. Wait a short configurable period.
-3. Force kill if still running.
-```
-
-Avoid force-kill as the default first action.
-
----
-
-## 9. Logs and Diagnostics
-
-Logs are important from Phase 1.
-
-Need both:
-
-```text
-- Visible log panel in the orchestrator UI.
-- Log file in `logs/`.
-```
-
-Log examples:
-
-```text
-[18:42:03] Starting PublicWifi.exe
-[18:42:03] Working dir: apps/PublicWifi
-[18:42:03] Args: --mode live --profile school
-[18:42:04] PublicWifi running
-[18:43:10] PublicWifi closed unexpectedly
-```
-
-Also useful:
-
-```text
-- Package diagnostics.
-- Missing file warnings.
-- Bad working directory warnings.
-- Failed process start details.
-```
-
----
-
-## 10. Stage / Projector Strategy
-
-There will definitely be a projector.
-
-Two possible modes:
-
-### 10.1 Mirror Mode
-
-Laptop screen and projector show the same content.
-
-Pros:
-
-```text
-- Simpler.
-- Less technical risk.
-- The audience sees a real Windows app.
-```
-
-Cons:
-
-```text
-- Audience sees the orchestrator.
-- Audience may see Alt-Tab/window changes.
-- Audience may see notifications or errors.
-- Less theatrical control.
-```
-
-Could be used for early tests or as fallback.
-
-### 10.2 Extended Screen Mode
-
-Laptop is control screen. Projector is stage screen.
-
-Preferred for final show.
-
-```text
-Laptop screen:
-- Orchestrator
-- Status
-- Controls
-- Logs
-
-Projector:
-- Apps
-- Videos
-- Black screen
-- Logo
-- Stage content only
-```
-
-This is more professional and safer for live performance.
-
-The architecture should be designed with two conceptual screens from the beginning:
-
-```text
-Control Screen
-Stage Screen
-```
-
-Projector/stage output is not Phase 1, but it must be considered before final Live mode.
-
----
-
-## 11. Scenes
-
-Scenes are not implemented in Phase 1.
-
-Eventually, Live mode should operate through scenes.
-
-A scene is a recipe of actions, not just “open one app”.
-
-Example:
-
-```text
-Scene: Wi-Fi pública
-
-Actions:
-- stop previous video
-- launch PublicWifi if not already running
-- pass live parameters
-- move app to stage screen
-- set fullscreen
-- switch mobile app to proper mode
-- play sound/music if needed
-- set light preset if available
-- mark scene active
-```
-
-Important distinction:
-
-```text
-Prepare scene
-Activate scene
-```
-
-Example:
-
-```text
-Prepare Password Oracle:
-- launch app hidden
-- load profile
-- check it is running
-
-Activate Password Oracle:
-- move/show app on projector
-- play sound effect
-- mark scene as current
-```
-
-This distinction is valuable for live performance.
-
----
-
-## 12. Emergency Controls
-
-Emergency controls should appear relatively early.
-
-Minimum emergency actions:
-
-```text
-- Black screen
-- Show logo / waiting screen
-- Stop all sounds
-- Stop current app
-- Restart current app
-- Stop all apps
-- Manual mode
-```
-
-The show must be able to continue if a scene fails.
-
----
-
-## 13. Videos
-
-There are already some videos available for testing:
-
-```text
-- Two videos before the show starts.
-- One video at the end.
-```
-
-Video support is not required in Phase 1 but is required for Rehearsal mode.
-
-Eventually:
-
-```text
-Configuration:
-- register videos
-- validate paths
-
-Rehearsal:
-- play/stop videos manually
-
-Live:
-- videos are scene actions
-```
-
-A future video config may look like:
+### AppEntry fields
 
 ```json
 {
-  "videos": [
-    {
-      "id": "intro_1",
-      "name": "Intro 1",
-      "path": "media/intro_1.mp4"
-    },
-    {
-      "id": "final",
-      "name": "Final",
-      "path": "media/final.mp4"
-    }
-  ]
+  "id": "my_app",
+  "name": "My App",
+  "description": "optional",
+  "executable": "apps/MyApp/MyApp.exe",
+  "workingDirectory": "apps/MyApp",
+  "arguments": [],
+  "configurationArguments": [],
+  "rehearsalArguments": [],
+  "liveArguments": [],
+  "startupPolicy": "manual",
+  "closePolicy": "terminateThenKill",
+  "expectedWindowTitle": "",
+  "category": ""
 }
 ```
 
----
+### MediaEntry fields
 
-## 14. Sounds
-
-No sounds are ready yet, but architecture should leave room for them.
-
-Eventually:
-
-```text
-Configuration:
-- register sounds/music files
-- set default volume if needed
-
-Rehearsal:
-- play sound manually
-- stop all sounds
-
-Live:
-- sounds/music are scene actions
+```json
+{
+  "id": "intro_1",
+  "name": "Intro 1",
+  "type": "video",
+  "path": "media/intro_1.mp4"
+}
 ```
 
-Potential actions:
-
-```text
-play_sound
-play_music
-stop_sound
-stop_all_sounds
-set_volume
-```
+`type` can be `"video"` or `"audio"`. Audio entries play without a video widget.
 
 ---
 
-## 15. Lighting
+## 5. UI / Theme
 
-Lighting will come later.
+All visual constants live in `CyberTheme.h` (namespace `CyberTheme`):
 
-Still, the scene action model should leave space for lighting from the beginning.
+| Token | Value | Role |
+|---|---|---|
+| `BackgroundBase` | `#050608` | Deepest background |
+| `PanelBackground` | `#101318` | Panel fill |
+| `PanelBorder` | `#293241` | Panel border |
+| `TextPrimary` | `#F2F5F8` | Primary text |
+| `TextSecondary` | `#8D96A3` | Secondary text |
+| `TextMuted` | `#5F6B78` | Muted / disabled text |
+| `AccentPrimary` | `#1688E8` | Blue accent (buttons) |
+| `AccentCyan` | `#00D1FF` | Cyan accent |
+| `AccentGreen` | `#00FF55` | Running / playing state |
+| `Warning` | `#FFB000` | Starting / stopping state |
+| `Error` | `#FF3347` | Error state |
 
-Eventually:
+`CyberTheme::globalStyleSheet()` is applied once in `main.cpp`.
 
-```text
-Configuration:
-- configure lighting device/software
-- create presets
-- test presets
+**Language rule:** UI labels in Spanish. Code, identifiers, JSON keys, and comments in English.
 
-Rehearsal:
-- trigger presets manually
+**Stage logo:** "BAJO ATAQUE" in red `#FF2020`, 80 px bold, wide letter-spacing.
 
-Live:
-- scenes trigger lighting presets
-```
+**State colors in tables:**
 
-Possible future action:
-
-```text
-set_light_scene
-```
-
-Do not hardcode lighting too early. Treat it as another action type in the scene system.
-
----
-
-## 16. Proposed Implementation Phases
-
-### Phase 1 — Orchestrator Skeleton
-
-Goal:
-
-```text
-Create a C++/Qt console able to load app configuration and control basic external app lifecycle.
-```
-
-Includes:
-
-```text
-- CMake/Qt HelloWorld base.
-- Main UI with three modes: Configuration, Rehearsal, Live.
-- Load JSON config.
-- Default config template as Qt resource.
-- External editable config at `config/apps.json`.
-- List configured apps.
-- Start app.
-- Stop app.
-- Restart app.
-- Stop All.
-- Basic states: Stopped / Starting / Running / Error.
-- Visible log panel.
-- File log.
-- Use executable + workingDirectory.
-- Use relative paths from package root.
-```
-
-Does not include:
-
-```text
-- Scenes.
-- Projector/stage screen.
-- Window movement.
-- Videos.
-- Sounds.
-- Stream Deck.
-- Mobile communication.
-- Lighting.
-```
-
-Success criteria:
-
-```text
-1. Copy package to main laptop.
-2. Run CybershowConsole.exe.
-3. See app list.
-4. Start an app.
-5. App opens with its DLLs.
-6. Stop the app.
-7. Restart the app.
-8. Stop All leaves nothing running.
-9. Bad paths produce clear errors.
-10. App unexpected exit updates status.
-```
+| State | Label | Color |
+|---|---|---|
+| Stopped | LISTA / LISTO | `TextMuted` grey |
+| Starting / Stopping | EJECUTÁNDOSE | `Warning` amber |
+| Running | EJECUTÁNDOSE | `AccentGreen` |
+| Playing | REPRODUCIENDO | `AccentGreen` |
+| Error | ERROR | `Error` red |
 
 ---
 
-### Phase 2 — Portable Packaging
+## 6. Build
 
-Goal:
-
-```text
-Make the package copyable and usable on multiple laptops from early development.
+```powershell
+cmake -B build -DCMAKE_BUILD_TYPE=Release
+cmake --build build --config Release
 ```
 
-Includes:
+Requires Qt 6.7.3 and MSVC (no MinGW). The `Qt6Multimedia` module must be enabled.
+FFmpeg DLLs (`avcodec`, `avformat`, `avutil`, `swresample`, `swscale`) and
+`plugins/multimedia/` must be present next to the exe.
 
-```text
-- Final-ish package folder structure.
-- Apps under `apps/`, each with own DLLs/plugins.
-- Config under `config/`.
-- Logs under `logs/`.
-- Media/sounds/lights folders present.
-- Relative paths only.
-- Test on main laptop and backup laptop.
-- Package diagnostics panel.
+**Release packaging:**
+```powershell
+.\package-release.ps1
 ```
-
-Success criteria:
-
-```text
-1. Zip/copy folder to backup laptop.
-2. Run without installing Qt globally.
-3. All configured app paths resolve.
-4. Logs can be written.
-5. Start/stop works on both laptops.
-```
+Requires PowerShell 7+ (`pwsh`). Creates `dist\cybershow-orchestrator-vNN.zip`.
+Use `-Force` to skip the uncommitted-changes check.
 
 ---
 
-### Phase 3 — Configuration Mode
+## 7. Known Gotchas
 
-Goal:
-
-```text
-Make Configuration mode useful for preparing the show.
-```
-
-Includes:
-
-```text
-- Edit app name.
-- Edit executable path.
-- Edit working directory.
-- Edit common arguments.
-- Edit configuration/rehearsal/live arguments.
-- Validate app entry.
-- Test start/stop from Configuration mode.
-- Save config.
-- Possibly duplicate/import app entries.
-```
-
-Possible later improvement:
-
-```text
-Profiles:
-- home
-- rehearsal
-- live main laptop
-- live backup laptop
-```
-
-Success criteria:
-
-```text
-A user can configure an app without editing JSON manually and verify it launches correctly.
-```
+| Issue | Solution |
+|---|---|
+| `QWidget::create()` is protected (C2248 in MSVC) | Use `winId()` — forces native window creation as a public side effect |
+| First `showFullScreen()` lands on primary monitor | Call `pinToScreen()` (winId + windowHandle()->setScreen()) before showFullScreen |
+| QVideoWidget inside QStackedWidget renders on wrong screen | Use standalone top-level QVideoWidget pinned directly to stage screen geometry |
+| FFmpeg multimedia backend missing | avcodec/avformat/avutil/swresample/swscale DLLs + plugins/multimedia/ must be in package |
+| App DLL lookup fails | Always set `workingDirectory` to the app's own folder; never rely on PATH |
+| MSVC stricter auto deduction | Prefer explicit types in range-for over `QMap` — MSVC rejects some GCC-valid patterns |
+| Video widget not showing on projector | Verify `m_stageGeometry` is set (via `setStageGeometry`) before `play()` is called |
 
 ---
 
-### Phase 4 — Rehearsal Mode
+## 8. What Is Built and Working
 
-Goal:
-
-```text
-Manual control for rehearsing show elements.
-```
-
-Includes:
-
-```text
-- Manual app control using stored config.
-- Video list.
-- Play/stop video.
-- Stop all apps.
-- Black screen placeholder.
-- Show logo/waiting screen placeholder.
-- Placeholder area for sounds.
-- Basic emergency controls.
-```
-
-Success criteria:
-
-```text
-The team can rehearse app launches and video playback from one place.
-```
+- Mode selector screen with keyboard navigation and animated cyber background
+- Three mode screens: CONFIGURAR, ENSAYO, SHOW — full keyboard navigation between them
+- **CONFIGURAR:** full CRUD for apps (add/edit/delete) and media (add/edit/delete), test Iniciar/Parar
+- **ENSAYO:** Iniciar/Parar per rundown item, manual table, log panel
+- **SHOW:** scene-by-scene navigation (Anterior / Activar / Siguiente), current-row highlight
+- AppManager: start / stop / restart / stopAll with QProcess, 3-second kill fallback
+- MediaManager: play / stop video with standalone fullscreen widget pinned to stage screen
+- StageWindow: fullscreen on secondary screen, logo / black, softHide / softShow
+- `pinToScreen()` fix — stage always opens on the correct screen on first activation
+- Automatic logo: shows on activation, video stop, app stop — no explicit button needed
+- RundownConfig: ordered list synced from apps + media libraries
+- Stage controls hidden on single-screen setup
+- Logger: visible log panel in all mode screens
+- Package script (`package-release.ps1`) with versioned zip output
 
 ---
 
-### Phase 5 — Stage Screen / Projector
+## 9. Next Steps (Priority Order)
 
-Goal:
+1. **Test stage + video on two-screen hardware.** The `pinToScreen()` fix and standalone video
+   widget were committed but not yet validated with a real projector. This is the highest-priority
+   test before any live use.
 
-```text
-Support separate control screen and stage/projector screen.
-```
+2. **ENSAYO: rundown reorder.** `RehearsalModeScreen` shows the rundown but does not yet expose
+   move-up / move-down controls. `RundownConfig::moveUp()` / `moveDown()` already exist — just
+   need UI buttons and wiring.
 
-Includes:
+3. **Emergency controls.** Add to both ENSAYO and SHOW: stop current item, restart current item,
+   black screen on stage (already possible via `m_stageWindow->showBlack()`). Should be prominent
+   and accessible without mouse in live mode.
 
-```text
-- Detect displays.
-- Select control screen.
-- Select stage screen.
-- Open videos on stage screen.
-- Later: move app windows to stage screen.
-- Black screen on stage.
-- Logo/waiting screen on stage.
-- Mirror fallback strategy.
-```
+4. **SHOW: keyboard shortcuts.** Verify `→` / `Space` = next scene and `Enter` = activate work
+   correctly in `ShowModeScreen::keyPressEvent`.
 
-Success criteria:
+5. **App window to projector.** `AppManager::scheduleWindowMove()` exists (EnumWindows +
+   SetWindowPos) but may need tuning for timing. The stage should `softHide()` when an app starts
+   so the app window is visible; `softShow()` + `showLogo()` when it stops.
 
-```text
-Orchestrator stays on laptop while audience content appears on projector.
-```
+6. **Sound support.** `MediaEntry.type` already supports `"audio"`. `MediaManager::play()` would
+   need a branch that creates `QAudioOutput` without a video widget for audio-only entries.
 
----
-
-### Phase 6 — Live Mode / Scenes
-
-Goal:
-
-```text
-Run the show through scenes.
-```
-
-Includes:
-
-```text
-- Scene list.
-- Current scene.
-- Next scene.
-- Previous scene.
-- Prepare scene.
-- Activate scene.
-- Scene action model.
-- App actions.
-- Video actions.
-- Placeholder sound/light actions.
-- Scene status.
-```
-
-Possible scene states:
-
-```text
-NotPrepared
-Preparing
-Ready
-Active
-Completed
-Failed
-Skipped
-```
-
-Success criteria:
-
-```text
-Operator can progress through the show using scene controls rather than manual app/video buttons.
-```
+7. **Robustness pass.** Pre-show checklist, clearer operator alerts, better error recovery.
 
 ---
 
-### Phase 7 — Sound
+## 10. Design Rules (Non-Negotiable)
 
-Goal:
-
-```text
-Add sound/music control.
-```
-
-Includes:
-
-```text
-- Register sound files.
-- Play sound.
-- Stop sound.
-- Stop all sounds.
-- Optional volume control.
-- Sounds as scene actions.
-```
-
----
-
-### Phase 8 — Lighting
-
-Goal:
-
-```text
-Add lighting control.
-```
-
-Includes:
-
-```text
-- Configure lighting backend/device/software.
-- Define lighting presets.
-- Trigger presets manually in Rehearsal.
-- Trigger presets automatically in Live scenes.
-```
-
-Lighting should be modeled as scene actions, not as special-case code.
-
----
-
-### Phase 9 — Robustness for Live Show
-
-Goal:
-
-```text
-Make the system safe for performance.
-```
-
-Includes:
-
-```text
-- Better error recovery.
-- Clear operator alerts.
-- Checklist before show.
-- Logs review.
-- Stop/restart current scene/app.
-- Manual fallback mode.
-- Backup laptop validation.
-- Full-show rehearsal mode.
-```
-
----
-
-## 17. Suggested Initial UI
-
-Phase 1 UI can be simple.
-
-```text
-CYBERSHOW ORCHESTRATOR
-
-Mode:
-[ Configuration ] [ Rehearsal ] [ Live ]
-
-Applications:
-------------------------------------------------------
-Name              State       Actions
-------------------------------------------------------
-Wi-Fi pública     Running     [Start] [Stop] [Restart]
-QR Changer        Stopped     [Start] [Stop] [Restart]
-Mobile Bridge     Error       [Start] [Stop] [Restart]
-------------------------------------------------------
-
-[Stop All]
-
-Log:
-[12:31:04] Starting Wi-Fi pública...
-[12:31:05] Wi-Fi pública running.
-[12:31:20] Stopping Wi-Fi pública...
-```
-
-Later:
-
-```text
-- Stage/proyector status.
-- Mobile status.
-- Current scene.
-- Next scene.
-- Emergency buttons.
-```
-
----
-
-## 18. Important Design Rules
-
-```text
-1. Configuration prepares.
-2. Rehearsal tests.
-3. Live executes.
-4. Packaging is validated in every phase.
-5. Paths should be relative.
-6. Apps should be launched from their own working directory.
-7. Do not embed external apps/DLLs in Qt resources.
-8. Keep each existing app autonomous initially.
-9. Prefer robustness over disk-size optimization.
-10. Design scene actions generically so videos, sounds and lights fit later.
-11. Keep emergency controls available.
-12. Keep visible and file logs from the beginning.
-```
-
----
-
-## 19. Immediate Next Step
-
-The user will create a basic Qt/CMake HelloWorld.
-
-Next coding task after that:
-
-```text
-Implement Phase 1:
-- app config loading
-- basic app list UI
-- QProcess-based start/stop/restart
-- working directory support
-- basic states
-- visible log
-- file log
-- Stop All
-```
-
-Use the package-oriented structure even in the first prototype.
-
----
-
-## 20. Notes for Coding Assistants
-
-When continuing this project:
-
-```text
-- Do not jump directly to scenes before Phase 1 and packaging are stable.
-- Do not over-engineer the UI early.
-- Prefer small increments that can be tested on both laptops.
-- Keep the JSON schema simple but future-friendly.
-- Keep all code and identifiers in English.
-- User discussions may be in Spanish, but code should be English.
-- The user works with C++/Qt/CMake.
-- The user values practical robustness for a live show over theoretical elegance.
-```
-
+1. All paths relative to the package root — never hardcoded absolute paths.
+2. Each external app is self-contained in its own folder under `apps/` with its own DLLs.
+3. Always set `workingDirectory` when launching an external app via QProcess.
+4. Do not embed external executables in Qt resources.
+5. Prefer robustness over disk efficiency (duplicate DLLs per app is correct).
+6. Code, identifiers, JSON keys, comments in English. UI labels in Spanish.
+7. Logo shows automatically — no explicit black/logo buttons in the operator UI.
+8. `winId()` before `windowHandle()->setScreen()` — never `QWidget::create()`.
+9. Video uses standalone top-level `QVideoWidget` pinned to stage geometry — not embedded in StageWindow.
+10. Keep emergency controls accessible from ENSAYO and SHOW — the show must survive a scene failure.
+11. Do not over-engineer. Add features only when the show actually needs them.
+12. Fewer controls in SHOW mode = safer live performance.
