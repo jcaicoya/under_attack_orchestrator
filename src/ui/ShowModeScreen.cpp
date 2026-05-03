@@ -118,7 +118,7 @@ void ShowModeScreen::buildUI() {
     title->setObjectName("ScreenTitle");
     header->addWidget(title);
     header->addStretch();
-    auto* escHint = new QLabel("1 · Configurar   2 · Ensayo   Esc · Selector", this);
+    auto* escHint = new QLabel("← / 2 · Ensayo   1 · Configurar   → / Espacio · Siguiente   Esc · Selector", this);
     escHint->setObjectName("MutedLabel");
     header->addWidget(escHint);
     root->addLayout(header);
@@ -614,9 +614,6 @@ void ShowModeScreen::keyPressEvent(QKeyEvent* event) {
             if (next < m_table->rowCount()) activateScene(next);
             break;
         }
-        case Qt::Key_Left:
-            if (m_currentRow > 0) activateScene(m_currentRow - 1);
-            break;
         case Qt::Key_Return:
         case Qt::Key_Enter: {
             const int target = (m_currentRow < 0) ? 0 : m_currentRow;
@@ -624,8 +621,9 @@ void ShowModeScreen::keyPressEvent(QKeyEvent* event) {
             break;
         }
         case Qt::Key_Escape: emit returnToSelector(); break;
-        case Qt::Key_1:      emit switchMode(0); break;
+        case Qt::Key_Left:
         case Qt::Key_2:      emit switchMode(1); break;
+        case Qt::Key_1:      emit switchMode(0); break;
         default:
             QWidget::keyPressEvent(event);
     }
