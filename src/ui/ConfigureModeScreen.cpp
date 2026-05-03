@@ -169,7 +169,7 @@ void ConfigureModeScreen::buildUI() {
     // ── Escenario ─────────────────────────────────────────────────────────────
     auto* stageRow = new QHBoxLayout();
     stageRow->setSpacing(8);
-    auto* stageHeadLabel = new QLabel("Escenario:", this);
+    auto* stageHeadLabel = new QLabel("Escenario", this);
     stageHeadLabel->setObjectName("FieldLabel");
     stageRow->addWidget(stageHeadLabel);
 

@@ -123,7 +123,7 @@ void RehearsalModeScreen::buildUI() {
     // ── Stage controls ────────────────────────────────────────────────────────
     auto* stageBar = new QHBoxLayout();
     stageBar->setSpacing(8);
-    auto* stageLabel = new QLabel("Escenario:", this);
+    auto* stageLabel = new QLabel("Escenario", this);
     stageLabel->setObjectName("FieldLabel");
     stageBar->addWidget(stageLabel);
 
@@ -155,10 +155,10 @@ void RehearsalModeScreen::buildUI() {
     });
     stageBar->addWidget(m_stageLogoBtn);
 
-    stageBar->addStretch();
     m_stageStatusLabel = new QLabel("Inactivo", this);
     m_stageStatusLabel->setObjectName("MutedLabel");
     stageBar->addWidget(m_stageStatusLabel);
+    stageBar->addStretch();
     root->addLayout(stageBar);
 
     // Rundown table — columns: "" | Nombre | Tipo | ✓ | Acción | Parar | Estado

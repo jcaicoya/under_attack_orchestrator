@@ -126,7 +126,7 @@ void ShowModeScreen::buildUI() {
     // ── Stage controls ────────────────────────────────────────────────────────
     auto* stageBar = new QHBoxLayout();
     stageBar->setSpacing(8);
-    auto* stageLabel = new QLabel("Escenario:", this);
+    auto* stageLabel = new QLabel("Escenario", this);
     stageLabel->setObjectName("FieldLabel");
     stageBar->addWidget(stageLabel);
 
@@ -156,10 +156,10 @@ void ShowModeScreen::buildUI() {
             [this]() { if (m_stageWindow) m_stageWindow->showLogo(); });
     stageBar->addWidget(m_stageLogoBtn);
 
-    stageBar->addStretch();
     m_stageStatusLabel = new QLabel("Inactivo", this);
     m_stageStatusLabel->setObjectName("MutedLabel");
     stageBar->addWidget(m_stageStatusLabel);
+    stageBar->addStretch();
     root->addLayout(stageBar);
 
     // ── Scene table ───────────────────────────────────────────────────────────
