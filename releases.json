@@ -27,6 +27,13 @@
       "date": "2026-05-02T14:36:13",
       "message": "Fix package script: include multimedia and FFmpeg DLLs in zip",
       "zip": "cybershow-orchestrator-v03.zip"
+    },
+    {
+      "version": 4,
+      "commit": "c108521",
+      "date": "2026-05-03T12:18:58",
+      "message": "Add Show mode (Phase 6) and rename DISEÑO to ENSAYO",
+      "zip": "cybershow-orchestrator-v04.zip"
     }
   ]
 }

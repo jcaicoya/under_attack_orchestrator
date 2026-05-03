@@ -72,8 +72,6 @@ private:
     QPushButton*  m_stageActivateBtn  = nullptr;
     QPushButton*  m_stageBlackBtn     = nullptr;
     QPushButton*  m_stageLogoBtn      = nullptr;
-    QLabel*       m_stageStatusLabel  = nullptr;
-
     QString       m_configPath;
     AppConfig     m_config;
     AppManager*   m_manager           = nullptr;

@@ -94,6 +94,11 @@ void MediaManager::play(const QString& id) {
 
     ensurePlayer(id, entry);
 
+    // Re-apply stage output so the renderer gets a now-visible widget
+    // (caller calls showVideo() before play() when stage is active)
+    if (m_stageOutput && entry.type == "video")
+        rt.player->setVideoOutput(m_stageOutput);
+
     if (!QFileInfo::exists(entry.path)) {
         emit logMessage(QString("ERROR: Archivo no encontrado: %1").arg(entry.path));
         setState(id, MediaState::Error);

@@ -47,6 +47,7 @@ StageWindow::StageWindow(QWidget* parent)
 
     // Index 2: Video output
     m_videoWidget = new QVideoWidget(m_stack);
+    m_videoWidget->setAttribute(Qt::WA_NativeWindow, true);
     m_videoWidget->setStyleSheet("background: black;");
     m_stack->addWidget(m_videoWidget);
 
@@ -89,6 +90,19 @@ void StageWindow::showVideo() {
     m_content = Content::Video;
     raise();
     emit contentChanged(m_content);
+}
+
+void StageWindow::softHide() {
+    hide();
+}
+
+void StageWindow::softShow() {
+    if (m_screenIndex < 0) return;
+    const auto screens = QGuiApplication::screens();
+    if (m_screenIndex >= screens.size()) return;
+    setGeometry(screens[m_screenIndex]->geometry());
+    showFullScreen();
+    raise();
 }
 
 void StageWindow::keyPressEvent(QKeyEvent* event) {

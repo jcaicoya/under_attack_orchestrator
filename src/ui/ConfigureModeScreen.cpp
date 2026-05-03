@@ -201,9 +201,6 @@ void ConfigureModeScreen::buildUI() {
             [this]() { if (m_stageWindow) m_stageWindow->showLogo(); });
     stageRow->addWidget(m_stageLogoBtn);
 
-    m_stageStatusLabel = new QLabel("Inactivo", this);
-    m_stageStatusLabel->setObjectName("MutedLabel");
-    stageRow->addWidget(m_stageStatusLabel);
     stageRow->addStretch();
     root->addLayout(stageRow);
 
@@ -682,7 +679,6 @@ void ConfigureModeScreen::populateScreenCombo() {
     m_stageActivateBtn->setVisible(multi);
     m_stageBlackBtn->setVisible(multi);
     m_stageLogoBtn->setVisible(multi);
-    if (!multi) m_stageStatusLabel->setText("Sin segunda pantalla");
 }
 
 void ConfigureModeScreen::onActivateStage() {
@@ -697,21 +693,13 @@ void ConfigureModeScreen::onActivateStage() {
 }
 
 void ConfigureModeScreen::updateStageStatus() {
-    if (QGuiApplication::screens().size() <= 1) {
-        m_stageStatusLabel->setText("Sin segunda pantalla");
+    if (QGuiApplication::screens().size() <= 1)
         return;
-    }
     const bool active = m_stageWindow && m_stageWindow->isActive();
     m_stageActivateBtn->setText(active ? "Desactivar" : "Activar");
     m_stageBlackBtn->setEnabled(active);
     m_stageLogoBtn->setEnabled(active);
     m_screenCombo->setEnabled(!active);
-    if (!active) {
-        m_stageStatusLabel->setText("Inactivo");
-    } else {
-        m_stageStatusLabel->setText(
-            QString("Activo · Pantalla %1").arg(m_stageWindow->activeScreenIndex() + 1));
-    }
 }
 
 void ConfigureModeScreen::loadStageConfig() {

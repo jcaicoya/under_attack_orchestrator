@@ -64,8 +64,6 @@ private:
     QPushButton*   m_stageActivateBtn  = nullptr;
     QPushButton*   m_stageBlackBtn     = nullptr;
     QPushButton*   m_stageLogoBtn      = nullptr;
-    QLabel*        m_stageStatusLabel  = nullptr;
-
     QTableWidget*  m_table        = nullptr;
     QPushButton*   m_stopAllBtn   = nullptr;
     QTextEdit*     m_logPanel     = nullptr;

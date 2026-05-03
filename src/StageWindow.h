@@ -24,6 +24,8 @@ public slots:
     void showBlack();
     void showLogo();
     void showVideo();
+    void softHide();   // hide without emitting deactivated
+    void softShow();   // re-show on same screen without emitting activated
 
 signals:
     void activated(int screenIndex);
