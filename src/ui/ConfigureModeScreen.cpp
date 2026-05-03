@@ -161,7 +161,7 @@ void ConfigureModeScreen::buildUI() {
     title->setObjectName("ScreenTitle");
     header->addWidget(title);
     header->addStretch();
-    auto* escHint = new QLabel("Esc · Volver", this);
+    auto* escHint = new QLabel("2 · Ensayo   3 · Show   →  Cambiar modo   Esc · Selector", this);
     escHint->setObjectName("MutedLabel");
     header->addWidget(escHint);
     root->addLayout(header);
@@ -656,11 +656,16 @@ void ConfigureModeScreen::populateScreenCombo() {
         const QRect geo = screens[i]->geometry();
         m_screenCombo->addItem(
             QString("Pantalla %1: %2 (%3×%4)")
-                .arg(i).arg(screens[i]->name())
+                .arg(i + 1).arg(screens[i]->name())
                 .arg(geo.width()).arg(geo.height()));
     }
     if (saved >= 0 && saved < m_screenCombo->count())
         m_screenCombo->setCurrentIndex(saved);
+
+    const bool multi = screens.size() > 1;
+    m_screenCombo->setVisible(multi);
+    m_stageActivateBtn->setVisible(multi);
+    if (!multi) m_stageStatusLabel->setText("Sin segunda pantalla");
 }
 
 void ConfigureModeScreen::onActivateStage() {
@@ -675,13 +680,17 @@ void ConfigureModeScreen::onActivateStage() {
 }
 
 void ConfigureModeScreen::updateStageStatus() {
+    if (QGuiApplication::screens().size() <= 1) {
+        m_stageStatusLabel->setText("Sin segunda pantalla");
+        return;
+    }
     if (!m_stageWindow || !m_stageWindow->isActive()) {
         m_stageActivateBtn->setText("Activar");
         m_stageStatusLabel->setText("Inactivo");
     } else {
         m_stageActivateBtn->setText("Desactivar");
         m_stageStatusLabel->setText(
-            QString("Activo · Pantalla %1").arg(m_stageWindow->activeScreenIndex()));
+            QString("Activo · Pantalla %1").arg(m_stageWindow->activeScreenIndex() + 1));
     }
 }
 
@@ -708,8 +717,12 @@ void ConfigureModeScreen::saveStageConfig(int screenIndex) {
 }
 
 void ConfigureModeScreen::keyPressEvent(QKeyEvent* event) {
-    if (event->key() == Qt::Key_Escape) emit returnToSelector();
-    else QWidget::keyPressEvent(event);
+    switch (event->key()) {
+        case Qt::Key_Escape: emit returnToSelector(); break;
+        case Qt::Key_2: case Qt::Key_Right: emit switchMode(1); break;
+        case Qt::Key_3:                     emit switchMode(2); break;
+        default: QWidget::keyPressEvent(event);
+    }
 }
 
 void ConfigureModeScreen::showEvent(QShowEvent* event) {

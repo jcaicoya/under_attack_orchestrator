@@ -118,7 +118,7 @@ void ShowModeScreen::buildUI() {
     title->setObjectName("ScreenTitle");
     header->addWidget(title);
     header->addStretch();
-    auto* escHint = new QLabel("Esc · Volver", this);
+    auto* escHint = new QLabel("1 · Configurar   2 · Ensayo   Esc · Selector", this);
     escHint->setObjectName("MutedLabel");
     header->addWidget(escHint);
     root->addLayout(header);
@@ -312,6 +312,13 @@ void ShowModeScreen::populateScreenCombo() {
         m_screenCombo->setCurrentIndex(defaultIdx);
     }
     m_screenCombo->blockSignals(false);
+
+    const bool multi = screens.size() > 1;
+    m_screenCombo->setVisible(multi);
+    m_stageActivateBtn->setVisible(multi);
+    m_stageBlackBtn->setVisible(multi);
+    m_stageLogoBtn->setVisible(multi);
+    if (!multi) m_stageStatusLabel->setText("Sin segunda pantalla");
 }
 
 void ShowModeScreen::onActivateStage() {
@@ -348,6 +355,10 @@ void ShowModeScreen::saveStageConfig(int screenIndex) {
 }
 
 void ShowModeScreen::updateStageControls() {
+    if (QGuiApplication::screens().size() <= 1) {
+        m_stageStatusLabel->setText("Sin segunda pantalla");
+        return;
+    }
     const bool active = m_stageWindow && m_stageWindow->isActive();
     m_stageActivateBtn->setText(active ? "Desactivar" : "Activar");
     m_stageBlackBtn->setEnabled(active);
@@ -612,9 +623,9 @@ void ShowModeScreen::keyPressEvent(QKeyEvent* event) {
             if (target < m_table->rowCount()) activateScene(target);
             break;
         }
-        case Qt::Key_Escape:
-            emit returnToSelector();
-            break;
+        case Qt::Key_Escape: emit returnToSelector(); break;
+        case Qt::Key_1:      emit switchMode(0); break;
+        case Qt::Key_2:      emit switchMode(1); break;
         default:
             QWidget::keyPressEvent(event);
     }

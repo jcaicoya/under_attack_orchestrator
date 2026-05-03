@@ -49,5 +49,11 @@ MainWindow::MainWindow(const QString& packageRoot, QWidget* parent)
     connect(m_showScreen, &ShowModeScreen::returnToSelector,
             this, [this]() { m_stack->setCurrentIndex(0); });
 
+    // Direct mode switching: 0=Configure→stack1, 1=Ensayo→stack2, 2=Show→stack3
+    auto goMode = [this](int mode) { m_stack->setCurrentIndex(mode + 1); };
+    connect(m_configureScreen, &ConfigureModeScreen::switchMode, this, goMode);
+    connect(m_rehearsalScreen, &RehearsalModeScreen::switchMode, this, goMode);
+    connect(m_showScreen,      &ShowModeScreen::switchMode,      this, goMode);
+
     m_stack->setCurrentIndex(0);
 }

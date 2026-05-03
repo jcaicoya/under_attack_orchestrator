@@ -115,7 +115,7 @@ void RehearsalModeScreen::buildUI() {
     title->setObjectName("ScreenTitle");
     header->addWidget(title);
     header->addStretch();
-    auto* escHint = new QLabel("Esc · Volver", this);
+    auto* escHint = new QLabel("1 · Configurar   3 · Show   ←  →  Cambiar modo   Esc · Selector", this);
     escHint->setObjectName("MutedLabel");
     header->addWidget(escHint);
     root->addLayout(header);
@@ -261,15 +261,20 @@ void RehearsalModeScreen::populateScreenCombo() {
                 .arg(screens[i]->geometry().width())
                 .arg(screens[i]->geometry().height()),
             i);
-    // restore saved or pick last screen as default
-    int idx = saved;
     if (m_screenCombo->count() > 0) {
         int defaultIdx = m_screenCombo->count() - 1;
         for (int i = 0; i < m_screenCombo->count(); ++i)
-            if (m_screenCombo->itemData(i).toInt() == idx) { defaultIdx = i; break; }
+            if (m_screenCombo->itemData(i).toInt() == saved) { defaultIdx = i; break; }
         m_screenCombo->setCurrentIndex(defaultIdx);
     }
     m_screenCombo->blockSignals(false);
+
+    const bool multi = screens.size() > 1;
+    m_screenCombo->setVisible(multi);
+    m_stageActivateBtn->setVisible(multi);
+    m_stageBlackBtn->setVisible(multi);
+    m_stageLogoBtn->setVisible(multi);
+    if (!multi) m_stageStatusLabel->setText("Sin segunda pantalla");
 }
 
 void RehearsalModeScreen::onActivateStage() {
@@ -306,6 +311,10 @@ void RehearsalModeScreen::saveStageConfig(int screenIndex) {
 }
 
 void RehearsalModeScreen::updateStageControls() {
+    if (QGuiApplication::screens().size() <= 1) {
+        m_stageStatusLabel->setText("Sin segunda pantalla");
+        return;
+    }
     const bool active = m_stageWindow && m_stageWindow->isActive();
     m_stageActivateBtn->setText(active ? "Desactivar" : "Activar");
     m_stageBlackBtn->setEnabled(active);
@@ -556,8 +565,12 @@ void RehearsalModeScreen::onLogMessage(const QString& formatted) {
 }
 
 void RehearsalModeScreen::keyPressEvent(QKeyEvent* event) {
-    if (event->key() == Qt::Key_Escape) emit returnToSelector();
-    else QWidget::keyPressEvent(event);
+    switch (event->key()) {
+        case Qt::Key_Escape:                     emit returnToSelector(); break;
+        case Qt::Key_1: case Qt::Key_Left:       emit switchMode(0); break;
+        case Qt::Key_3: case Qt::Key_Right:      emit switchMode(2); break;
+        default: QWidget::keyPressEvent(event);
+    }
 }
 
 void RehearsalModeScreen::showEvent(QShowEvent* event) {

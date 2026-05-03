@@ -22,6 +22,7 @@ public:
 
 signals:
     void returnToSelector();
+    void switchMode(int mode);   // 0=Configure 1=Ensayo 2=Show
 
 protected:
     void keyPressEvent(QKeyEvent* event) override;
