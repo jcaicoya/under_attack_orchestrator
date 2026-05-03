@@ -213,19 +213,13 @@ void ConfigureModeScreen::buildUI() {
     connect(m_addBtn, &QPushButton::clicked, this, &ConfigureModeScreen::addApp);
     appBar->addWidget(m_addBtn);
     appBar->addStretch();
-    m_stopAllBtn = new QPushButton("Parar todo", this);
-    m_stopAllBtn->setObjectName("DangerButton");
-    m_stopAllBtn->setMinimumWidth(110);
-    m_stopAllBtn->setFocusPolicy(Qt::NoFocus);
-    connect(m_stopAllBtn, &QPushButton::clicked, m_manager, &AppManager::stopAll);
-    appBar->addWidget(m_stopAllBtn);
     root->addLayout(appBar);
 
     // ── Multimedia ───────────────────────────────────────────────────────────
     root->addWidget(makeSectionLabel("Multimedia", this));
 
     m_mediaTable = new QTableWidget(0, 6, this);
-    m_mediaTable->setHorizontalHeaderLabels({"Nombre", "Tipo", "Reproducir", "Parar", "Estado", ""});
+    m_mediaTable->setHorizontalHeaderLabels({"Nombre", "Tipo", "Iniciar", "Parar", "Estado", ""});
     m_mediaTable->horizontalHeader()->setSectionResizeMode(0, QHeaderView::Stretch);
     m_mediaTable->horizontalHeader()->setSectionResizeMode(1, QHeaderView::Fixed); m_mediaTable->setColumnWidth(1, 60);
     m_mediaTable->horizontalHeader()->setSectionResizeMode(2, QHeaderView::Fixed); m_mediaTable->setColumnWidth(2, 90);
@@ -247,12 +241,6 @@ void ConfigureModeScreen::buildUI() {
     connect(m_addMediaBtn, &QPushButton::clicked, this, &ConfigureModeScreen::addMedia);
     mediaBar->addWidget(m_addMediaBtn);
     mediaBar->addStretch();
-    m_stopAllMediaBtn = new QPushButton("Parar todo", this);
-    m_stopAllMediaBtn->setObjectName("DangerButton");
-    m_stopAllMediaBtn->setMinimumWidth(110);
-    m_stopAllMediaBtn->setFocusPolicy(Qt::NoFocus);
-    connect(m_stopAllMediaBtn, &QPushButton::clicked, m_mediaManager, &MediaManager::stopAll);
-    mediaBar->addWidget(m_stopAllMediaBtn);
     root->addLayout(mediaBar);
 
     // ── Log ──────────────────────────────────────────────────────────────────
@@ -383,7 +371,6 @@ void ConfigureModeScreen::addApp() {
     e.description      = fi.completeBaseName();
     e.executable       = fi.fileName();
     e.workingDirectory = fi.absolutePath();
-    e.enabled          = true;
 
     if (QMessageBox::question(this, "Añadir aplicación",
             QString("¿Añadir '%1'?\n\nEjecutable:  %2\nDirectorio: %3")
@@ -480,7 +467,7 @@ void ConfigureModeScreen::populateMediaTable() {
         typeItem->setForeground(isVideo ? QColor("#00BFFF") : QColor("#FF8C00"));
         m_mediaTable->setItem(row, 1, typeItem);
 
-        auto* playBtn = new QPushButton("Reproducir", this);
+        auto* playBtn = new QPushButton("Iniciar", this);
         auto* stopBtn = new QPushButton("Parar",      this);
         playBtn->setFocusPolicy(Qt::NoFocus);
         stopBtn->setFocusPolicy(Qt::NoFocus);
@@ -555,7 +542,6 @@ void ConfigureModeScreen::addMedia() {
     e.name    = fi.completeBaseName();
     e.type    = mediaTypeForPath(filePath);
     e.path    = fi.absoluteFilePath();
-    e.enabled = true;
 
     if (QMessageBox::question(this, "Añadir multimedia",
             QString("¿Añadir '%1'?\n\nArchivo: %2\nTipo: %3")

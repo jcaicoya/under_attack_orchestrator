@@ -78,13 +78,11 @@ private:
     MediaConfig   m_mediaConfig;
     MediaManager* m_mediaManager      = nullptr;
 
-    QTableWidget* m_table             = nullptr;
-    QPushButton*  m_addBtn            = nullptr;
-    QPushButton*  m_stopAllBtn        = nullptr;
+    QTableWidget* m_table      = nullptr;
+    QPushButton*  m_addBtn     = nullptr;
 
-    QTableWidget* m_mediaTable        = nullptr;
-    QPushButton*  m_addMediaBtn       = nullptr;
-    QPushButton*  m_stopAllMediaBtn   = nullptr;
+    QTableWidget* m_mediaTable = nullptr;
+    QPushButton*  m_addMediaBtn = nullptr;
 
     QTextEdit*    m_logPanel          = nullptr;
 };
