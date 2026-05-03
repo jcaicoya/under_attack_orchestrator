@@ -186,6 +186,21 @@ void ConfigureModeScreen::buildUI() {
     stageRow->addWidget(m_stageActivateBtn);
 
     stageRow->addSpacing(12);
+
+    m_stageBlackBtn = new QPushButton("Pantalla negra", this);
+    m_stageBlackBtn->setFocusPolicy(Qt::NoFocus);
+    m_stageBlackBtn->setEnabled(false);
+    connect(m_stageBlackBtn, &QPushButton::clicked, this,
+            [this]() { if (m_stageWindow) m_stageWindow->showBlack(); });
+    stageRow->addWidget(m_stageBlackBtn);
+
+    m_stageLogoBtn = new QPushButton("Logo", this);
+    m_stageLogoBtn->setFocusPolicy(Qt::NoFocus);
+    m_stageLogoBtn->setEnabled(false);
+    connect(m_stageLogoBtn, &QPushButton::clicked, this,
+            [this]() { if (m_stageWindow) m_stageWindow->showLogo(); });
+    stageRow->addWidget(m_stageLogoBtn);
+
     m_stageStatusLabel = new QLabel("Inactivo", this);
     m_stageStatusLabel->setObjectName("MutedLabel");
     stageRow->addWidget(m_stageStatusLabel);
@@ -665,6 +680,8 @@ void ConfigureModeScreen::populateScreenCombo() {
     const bool multi = screens.size() > 1;
     m_screenCombo->setVisible(multi);
     m_stageActivateBtn->setVisible(multi);
+    m_stageBlackBtn->setVisible(multi);
+    m_stageLogoBtn->setVisible(multi);
     if (!multi) m_stageStatusLabel->setText("Sin segunda pantalla");
 }
 
@@ -684,11 +701,14 @@ void ConfigureModeScreen::updateStageStatus() {
         m_stageStatusLabel->setText("Sin segunda pantalla");
         return;
     }
-    if (!m_stageWindow || !m_stageWindow->isActive()) {
-        m_stageActivateBtn->setText("Activar");
+    const bool active = m_stageWindow && m_stageWindow->isActive();
+    m_stageActivateBtn->setText(active ? "Desactivar" : "Activar");
+    m_stageBlackBtn->setEnabled(active);
+    m_stageLogoBtn->setEnabled(active);
+    m_screenCombo->setEnabled(!active);
+    if (!active) {
         m_stageStatusLabel->setText("Inactivo");
     } else {
-        m_stageActivateBtn->setText("Desactivar");
         m_stageStatusLabel->setText(
             QString("Activo · Pantalla %1").arg(m_stageWindow->activeScreenIndex() + 1));
     }

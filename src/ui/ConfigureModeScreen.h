@@ -70,6 +70,8 @@ private:
     StageWindow*  m_stageWindow       = nullptr;
     QComboBox*    m_screenCombo       = nullptr;
     QPushButton*  m_stageActivateBtn  = nullptr;
+    QPushButton*  m_stageBlackBtn     = nullptr;
+    QPushButton*  m_stageLogoBtn      = nullptr;
     QLabel*       m_stageStatusLabel  = nullptr;
 
     QString       m_configPath;

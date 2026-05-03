@@ -30,15 +30,15 @@ StageWindow::StageWindow(QWidget* parent)
     logoPanel->setStyleSheet("background: black;");
     auto* logoLay = new QVBoxLayout(logoPanel);
     logoLay->setAlignment(Qt::AlignCenter);
-    auto* titleLabel = new QLabel("CYBERSHOW", logoPanel);
+    auto* titleLabel = new QLabel("BAJO ATAQUE", logoPanel);
     titleLabel->setAlignment(Qt::AlignCenter);
     titleLabel->setStyleSheet(
-        "QLabel { color: #00BFFF; font-size: 80px; font-weight: 900;"
+        "QLabel { color: #FF2020; font-size: 80px; font-weight: 900;"
         " letter-spacing: 12px; background: transparent; }");
     auto* subLabel = new QLabel("en vivo", logoPanel);
     subLabel->setAlignment(Qt::AlignCenter);
     subLabel->setStyleSheet(
-        "QLabel { color: #1A2A45; font-size: 22px; font-weight: 400;"
+        "QLabel { color: #3A1010; font-size: 22px; font-weight: 400;"
         " letter-spacing: 8px; background: transparent; }");
     logoLay->addWidget(titleLabel);
     logoLay->addSpacing(12);

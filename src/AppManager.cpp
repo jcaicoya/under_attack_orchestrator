@@ -2,9 +2,52 @@
 #include <QDir>
 #include <QFileInfo>
 #include <algorithm>
+#ifdef Q_OS_WIN
+#  include <windows.h>
+#endif
 
 AppManager::AppManager(const QString& packageRoot, QObject* parent)
     : QObject(parent), m_packageRoot(packageRoot) {}
+
+void AppManager::setStageGeometry(const QRect& geo) {
+    m_stageGeometry = geo;
+}
+
+#ifdef Q_OS_WIN
+namespace {
+struct MoveData { DWORD pid; RECT target; bool found = false; };
+static BOOL CALLBACK enumWindowsCb(HWND hwnd, LPARAM lp) {
+    auto* d = reinterpret_cast<MoveData*>(lp);
+    DWORD winPid = 0;
+    GetWindowThreadProcessId(hwnd, &winPid);
+    if (winPid != d->pid || !IsWindowVisible(hwnd)) return TRUE;
+    RECT r; GetWindowRect(hwnd, &r);
+    if ((r.right - r.left) < 100 || (r.bottom - r.top) < 100) return TRUE;
+    SetWindowPos(hwnd, HWND_TOP,
+        d->target.left, d->target.top,
+        d->target.right - d->target.left,
+        d->target.bottom - d->target.top,
+        SWP_NOACTIVATE | SWP_SHOWWINDOW);
+    d->found = true;
+    return FALSE;
+}
+}
+#endif
+
+void AppManager::scheduleWindowMove(qint64 pid, const QRect& geo, int attemptsLeft) {
+#ifdef Q_OS_WIN
+    QTimer::singleShot(600, this, [this, pid, geo, attemptsLeft]() {
+        MoveData d;
+        d.pid    = static_cast<DWORD>(pid);
+        d.target = { geo.left(), geo.top(), geo.right(), geo.bottom() };
+        EnumWindows(enumWindowsCb, reinterpret_cast<LPARAM>(&d));
+        if (!d.found && attemptsLeft > 0)
+            scheduleWindowMove(pid, geo, attemptsLeft - 1);
+    });
+#else
+    Q_UNUSED(pid); Q_UNUSED(geo); Q_UNUSED(attemptsLeft);
+#endif
+}
 
 void AppManager::setMode(ShowMode mode) { m_mode = mode; }
 
@@ -68,11 +111,14 @@ void AppManager::start(const QString& id) {
     rt.process->setProgram(exePath);
 
     connect(rt.process, &QProcess::started, this, [this, id]() {
+        auto& rt = m_runtimes[id];
         setState(id, AppState::Running);
         auto it = std::find_if(m_entries.begin(), m_entries.end(),
                                [&](const AppEntry& e) { return e.id == id; });
         QString name = (it != m_entries.end()) ? it->name : id;
         emit logMessage(QString("%1 is running.").arg(name));
+        if (!m_stageGeometry.isEmpty() && rt.process)
+            scheduleWindowMove(rt.process->processId(), m_stageGeometry, 8);
     });
 
     connect(rt.process, &QProcess::finished, this,

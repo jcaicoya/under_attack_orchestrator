@@ -267,6 +267,9 @@ void ShowModeScreen::setStageWindow(StageWindow* stage) {
 
     connect(stage, &StageWindow::activated, this, [this](int idx) {
         m_mediaManager->setStageOutput(m_stageWindow->videoOutput());
+        const auto screens = QGuiApplication::screens();
+        if (idx < screens.size())
+            m_appManager->setStageGeometry(screens[idx]->geometry());
         m_stageActivateBtn->setText("Desactivar");
         m_stageBlackBtn->setEnabled(true);
         m_stageLogoBtn->setEnabled(true);
@@ -275,6 +278,7 @@ void ShowModeScreen::setStageWindow(StageWindow* stage) {
     });
     connect(stage, &StageWindow::deactivated, this, [this]() {
         m_mediaManager->setStageOutput(nullptr);
+        m_appManager->setStageGeometry({});
         m_stageActivateBtn->setText("Activar");
         m_stageBlackBtn->setEnabled(false);
         m_stageLogoBtn->setEnabled(false);
@@ -368,9 +372,12 @@ void ShowModeScreen::updateStageControls() {
         m_stageStatusLabel->setText("Inactivo");
         if (m_stageWindow) m_mediaManager->setStageOutput(nullptr);
     } else {
-        m_stageStatusLabel->setText(
-            QString("Activo · Pantalla %1").arg(m_stageWindow->activeScreenIndex() + 1));
+        const int idx = m_stageWindow->activeScreenIndex();
+        m_stageStatusLabel->setText(QString("Activo · Pantalla %1").arg(idx + 1));
         m_mediaManager->setStageOutput(m_stageWindow->videoOutput());
+        const auto screens = QGuiApplication::screens();
+        if (idx < screens.size())
+            m_appManager->setStageGeometry(screens[idx]->geometry());
     }
 }
 
@@ -561,6 +568,10 @@ void ShowModeScreen::activateScene(int row) {
         m_appManager->start(item.ref);
     } else {
         if (const auto* e = mediaEntryForId(item.ref)) name = e->name;
+        if (m_stageWindow && m_stageWindow->isActive()) {
+            if (const auto* e = mediaEntryForId(item.ref); e && e->type == "video")
+                m_stageWindow->showVideo();
+        }
         m_mediaManager->play(item.ref);
     }
 
