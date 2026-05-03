@@ -118,7 +118,7 @@ void MediaManager::play(const QString& id) {
             QScreen* targetScreen = nullptr;
             for (auto* s : QGuiApplication::screens())
                 if (s->geometry() == m_stageGeometry) { targetScreen = s; break; }
-            rt.videoWidget->create();
+            rt.videoWidget->winId(); // forces native window creation
             if (rt.videoWidget->windowHandle() && targetScreen)
                 rt.videoWidget->windowHandle()->setScreen(targetScreen);
 

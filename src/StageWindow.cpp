@@ -52,7 +52,7 @@ StageWindow::StageWindow(QWidget* parent)
 // On Windows, showFullScreen() on a never-shown window always lands on the
 // primary monitor regardless of setGeometry(), unless the screen is set first.
 static void pinToScreen(QWidget* w, QScreen* screen) {
-    w->create();
+    w->winId(); // forces native window creation; windowHandle() is valid after this
     if (auto* wh = w->windowHandle())
         wh->setScreen(screen);
 }
