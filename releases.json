@@ -41,6 +41,13 @@
       "date": "2026-05-03T20:15:38",
       "message": "Fix clean app exit treated as error; overhaul docs",
       "zip": "cybershow-orchestrator-v05.zip"
+    },
+    {
+      "version": 6,
+      "commit": "52afb79",
+      "date": "2026-05-04T18:06:06",
+      "message": "Add demo live app launch controls",
+      "zip": "cybershow-orchestrator-v06.zip"
     }
   ]
 }
