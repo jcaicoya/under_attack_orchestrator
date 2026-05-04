@@ -13,6 +13,9 @@ public:
     explicit MainWindow(const QString& packageRoot, QWidget* parent = nullptr);
     ~MainWindow() override = default;
 
+protected:
+    void keyPressEvent(QKeyEvent* event) override;
+
 private:
     QString               m_packageRoot;
     QStackedWidget*       m_stack            = nullptr;

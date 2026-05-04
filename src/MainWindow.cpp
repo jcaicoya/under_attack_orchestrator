@@ -1,5 +1,6 @@
 #include "MainWindow.h"
 #include "CyberBackgroundWidget.h"
+#include <QKeyEvent>
 #include <QVBoxLayout>
 
 MainWindow::MainWindow(const QString& packageRoot, QWidget* parent)
@@ -56,4 +57,13 @@ MainWindow::MainWindow(const QString& packageRoot, QWidget* parent)
     connect(m_showScreen,      &ShowModeScreen::switchMode,      this, goMode);
 
     m_stack->setCurrentIndex(0);
+}
+
+void MainWindow::keyPressEvent(QKeyEvent* event)
+{
+    if (event->key() == Qt::Key_F11) {
+        isFullScreen() ? showNormal() : showFullScreen();
+        return;
+    }
+    QMainWindow::keyPressEvent(event);
 }
