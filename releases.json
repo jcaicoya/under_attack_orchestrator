@@ -55,6 +55,13 @@
       "date": "2026-05-04T20:11:18",
       "message": "Add F11 fullscreen toggle to MainWindow",
       "zip": "cybershow-orchestrator-v07.zip"
+    },
+    {
+      "version": 8,
+      "commit": "16dc8aa",
+      "date": "2026-05-09T17:22:13",
+      "message": "Rename release zip prefix to bajo-ataque",
+      "zip": "bajo-ataque-orchestrator-v08.zip"
     }
   ]
 }
