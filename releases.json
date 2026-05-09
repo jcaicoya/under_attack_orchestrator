@@ -48,6 +48,13 @@
       "date": "2026-05-04T18:06:06",
       "message": "Add demo live app launch controls",
       "zip": "cybershow-orchestrator-v06.zip"
+    },
+    {
+      "version": 7,
+      "commit": "cb0e990",
+      "date": "2026-05-04T20:11:18",
+      "message": "Add F11 fullscreen toggle to MainWindow",
+      "zip": "cybershow-orchestrator-v07.zip"
     }
   ]
 }

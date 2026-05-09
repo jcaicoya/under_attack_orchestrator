@@ -262,7 +262,7 @@ FFmpeg DLLs (`avcodec`, `avformat`, `avutil`, `swresample`, `swscale`) and
 ```powershell
 .\package-release.ps1
 ```
-Requires PowerShell 7+ (`pwsh`). Creates `dist\cybershow-orchestrator-vNN.zip`.
+Requires PowerShell 7+ (`pwsh`). Creates `dist\bajo-ataque-orchestrator-vNN.zip`.
 Use `-Force` to skip the uncommitted-changes check.
 
 ---

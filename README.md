@@ -123,7 +123,7 @@ tools/            ← (reserved)
 - Requires PowerShell 7+ (`pwsh`). Run from the project root.
 - Builds the Release configuration in CMake.
 - Bundles `orchestrator.exe` + all required Qt and FFmpeg DLLs + plugins.
-- Creates `dist\cybershow-orchestrator-vNN.zip` (zero-padded incrementing version).
+- Creates `dist\bajo-ataque-orchestrator-vNN.zip` (zero-padded incrementing version).
 - Appends an entry to `releases.json` and creates a git tag.
 - Use `-Force` to skip the uncommitted-changes check.
 - After packaging: `git push --tags` to push the tag to the remote.
