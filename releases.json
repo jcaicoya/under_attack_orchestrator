@@ -62,6 +62,13 @@
       "date": "2026-05-09T17:22:13",
       "message": "Rename release zip prefix to bajo-ataque",
       "zip": "bajo-ataque-orchestrator-v08.zip"
+    },
+    {
+      "version": 9,
+      "commit": "aa54991",
+      "date": "2026-05-10T20:31:26",
+      "message": "Build orchestrator as WIN32 app",
+      "zip": "bajo-ataque-orchestrator-v09.zip"
     }
   ]
 }
