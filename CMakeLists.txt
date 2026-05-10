@@ -47,7 +47,7 @@ set(HEADERS
     src/ui/ShowModeScreen.h
 )
 
-add_executable(orchestrator
+add_executable(orchestrator WIN32
     ${SOURCES}
     ${HEADERS}
     resources.qrc
