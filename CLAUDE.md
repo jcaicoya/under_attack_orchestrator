@@ -30,15 +30,21 @@ orchestrator/
 ├── CLAUDE.md                    # This file
 ├── config/                      # Runtime-generated JSON (created on first run)
 │   ├── apps.json
+│   ├── android.json
 │   ├── media.json
 │   ├── rundown.json
 │   └── stage.json
 ├── apps/                        # External show apps, each self-contained
 ├── media/                       # Video/audio files
 ├── resources/                   # Qt resources (icons, default config templates)
+│   ├── apps_default.json
+│   └── android_default.json
 └── src/
     ├── main.cpp
     ├── MainWindow.h / .cpp
+    ├── AdbManager.h / .cpp       # Low-level adb.exe wrapper
+    ├── AndroidConfig.h / .cpp    # android.json schema + load/save
+    ├── AndroidManager.h / .cpp   # Android app lifecycle (launch/stop via ADB)
     ├── AppConfig.h / .cpp        # apps.json schema + load/save
     ├── AppManager.h / .cpp       # QProcess lifecycle for external apps
     ├── MediaConfig.h / .cpp      # media.json schema + load/save
@@ -123,6 +129,43 @@ enum class AppLaunchMode { Demo, Live };
   Windows API (`EnumWindows` + `SetWindowPos`) to move the app window to the projector after
   it starts.
 - Close policy: polite `terminate()` → 3 s kill timer → `kill()`.
+- **No ADB dependency.** AppManager only handles Qt processes. Android app lifecycle is fully
+  owned by `AndroidManager`.
+
+### 3.6 AdbManager
+
+Low-level wrapper around `adb.exe`. Looks for adb at
+`C:/Users/caico/AppData/Local/Android/Sdk/platform-tools/adb.exe`, falls back to PATH.
+
+Key methods:
+- `detectDevice()` — runs `adb devices`, emits `deviceFound(serial)` or `deviceLost()`
+- `connectWifi(ipPort)` — runs `adb connect <ip:port>`, then auto-calls `detectDevice()`
+- `disconnectDevice()` — for WiFi connections, runs `adb disconnect <serial>` and emits `deviceLost()`; for USB, just clears internal state
+- `testConnection()` — runs `getprop ro.product.model` and on success vibrates the device; if `m_serial` was empty and the test succeeds, auto-calls `detectDevice()` to sync state
+- `setupReverseTunnel(port)` — runs `adb reverse tcp:<port> tcp:<port>`
+- `launchApp(package, activity)` — runs `adb shell am start -n package/activity`
+- `stopApp(package)` — runs `adb shell am force-stop package`
+
+All commands are fire-and-forget (async `QProcess`). Signals: `deviceFound(serial)`, `deviceLost()`, `log(text)`.
+
+### 3.7 AndroidManager
+
+Owns Android app lifecycle. Receives a shared `AdbManager*` at construction.
+
+```cpp
+enum class AndroidState { Stopped, Running };
+```
+
+- `loadApps(QList<AndroidEntry>)` — replaces the entry list
+- `start(id)` — calls `setupReverseTunnel(wsPort)` if wsPort > 0, then `launchApp`; sets Running
+- `stop(id)` — calls `stopApp`; sets Stopped
+- `stopAll()` — stops all entries
+
+State is fire-and-forget: there is no process to monitor, so Running/Stopped reflects the last
+command sent, not verified app state. Signals: `stateChanged(id, state)`, `logMessage(text)`.
+
+Each screen (CONFIGURAR, ENSAYO) owns its own `AdbManager` + `AndroidManager` instance,
+consistent with the AppManager/MediaManager per-screen ownership pattern.
 
 ### 3.4 MediaManager — standalone video widget
 
@@ -192,9 +235,30 @@ All paths relative to the package root (the directory containing `orchestrator.e
   "startupPolicy": "manual",
   "closePolicy": "terminateThenKill",
   "expectedWindowTitle": "",
-  "category": ""
+  "category": "",
+  "linkedAndroidId": "my_android_app"
 }
 ```
+
+`linkedAndroidId` is optional (empty = no Android companion). It's a reference to an `AndroidEntry.id`
+in `android.json`. Used for UI pairing hints; the orchestrator does not enforce it automatically.
+
+### AndroidEntry fields (`config/android.json`)
+
+```json
+{
+  "id": "companion",
+  "name": "Companion",
+  "package": "com.cuarzopolar.companion",
+  "activity": ".MainActivity",
+  "wsPort": 8765
+}
+```
+
+`wsPort` > 0 triggers `adb reverse tcp:<wsPort> tcp:<wsPort>` before launch. Set to 0 to skip
+the tunnel (e.g. for apps that use their own connection mechanism).
+
+Default entries: `companion` (port 8765) and `password-android` (port 8767).
 
 ### MediaEntry fields
 
@@ -286,11 +350,17 @@ Use `-Force` to skip the uncommitted-changes check.
 - Mode selector screen with keyboard navigation and animated cyber background
 - Operator window opens fullscreen by default and the selector cards resize with the display
 - Three mode screens: CONFIGURAR, ENSAYO, SHOW — full keyboard navigation between them
-- **CONFIGURAR:** full CRUD for apps (add/edit/delete) and media (add/edit/delete), app Demo/Live launch, media Iniciar/Parar
-- **ENSAYO:** app Demo/Live launch, media Iniciar/Parar per rundown item, manual table, log panel
+- **CONFIGURAR:** 4-tab layout:
+  - **ADB tab:** device status (auto-detects on showEvent), Detectar / Probar / Desconectar, WiFi connect (IP:port)
+  - **Qt tab:** full CRUD for Qt apps (add/edit/delete), Demo/Live launch, Parar
+  - **Android tab:** full CRUD for Android apps (add/edit/delete via dialog), Lanzar/Parar
+  - **Multimedia tab:** full CRUD for media, Iniciar/Parar
+- **ENSAYO:** rundown table (Qt apps + media) with reorder arrows, Android apps section below with ADB status indicator; auto-detects ADB device on showEvent
 - **SHOW:** scene-by-scene navigation (Anterior / Activar / Siguiente), current-row highlight
 - Log panels are hidden by default on operator screens and toggled with `F10`.
-- AppManager: start / stop / restart / stopAll with QProcess, 3-second kill fallback
+- AdbManager: detectDevice, connectWifi, disconnectDevice, testConnection (vibrate), setupReverseTunnel, launchApp, stopApp
+- AndroidManager: start/stop/stopAll via ADB, fire-and-forget state (Running/Stopped)
+- AppManager: start / stop / restart / stopAll with QProcess, 3-second kill fallback; no ADB dependency
 - MediaManager: play / stop video with standalone fullscreen widget pinned to stage screen
 - StageWindow: fullscreen on secondary screen, logo / black, softHide / softShow
 - `pinToScreen()` fix — stage always opens on the correct screen on first activation
@@ -308,25 +378,31 @@ Use `-Force` to skip the uncommitted-changes check.
    widget were committed but not yet validated with a real projector. This is the highest-priority
    test before any live use.
 
-2. **ENSAYO: rundown reorder.** `RehearsalModeScreen` shows the rundown but does not yet expose
-   move-up / move-down controls. `RundownConfig::moveUp()` / `moveDown()` already exist — just
-   need UI buttons and wiring.
+2. **ADB Desconectar for USB.** `disconnectDevice()` clears internal state for USB devices but
+   does not actually disconnect the USB link (ADB cannot do this by software). For WiFi it works
+   correctly. Consider whether a visual "force-forget" behavior is sufficient for USB or if a
+   different UX is needed.
 
-3. **Emergency controls.** Add to both ENSAYO and SHOW: stop current item, restart current item,
+3. **Android state is fire-and-forget.** `AndroidManager` sets Running/Stopped based on the last
+   command sent, not on verified app state. If the Android app crashes or is force-stopped by the
+   user, the orchestrator will still show Running. A polling or ADB-based verification loop could
+   improve this, but adds complexity.
+
+4. **SHOW mode: Android apps.** SHOW mode does not yet have an Android apps section or ADB
+   indicator. If needed for live show control, add it following the ENSAYO pattern.
+
+5. **Emergency controls.** Add to both ENSAYO and SHOW: stop current item, restart current item,
    black screen on stage (already possible via `m_stageWindow->showBlack()`). Should be prominent
    and accessible without mouse in live mode.
 
-4. **SHOW: keyboard shortcuts.** Verify `→` / `Space` = next scene and `Enter` = activate work
-   correctly in `ShowModeScreen::keyPressEvent`.
-
-5. **App window to projector.** `AppManager::scheduleWindowMove()` exists (EnumWindows +
+6. **App window to projector.** `AppManager::scheduleWindowMove()` exists (EnumWindows +
    SetWindowPos) but may need tuning for timing. The stage should `softHide()` when an app starts
    so the app window is visible; `softShow()` + `showLogo()` when it stops.
 
-6. **Sound support.** `MediaEntry.type` already supports `"audio"`. `MediaManager::play()` would
+7. **Sound support.** `MediaEntry.type` already supports `"audio"`. `MediaManager::play()` would
    need a branch that creates `QAudioOutput` without a video widget for audio-only entries.
 
-7. **Robustness pass.** Pre-show checklist, clearer operator alerts, better error recovery.
+8. **Robustness pass.** Pre-show checklist, clearer operator alerts, better error recovery.
 
 ---
 

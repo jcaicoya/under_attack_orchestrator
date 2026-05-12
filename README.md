@@ -20,8 +20,8 @@ Three operating modes:
 
 | Mode | Purpose |
 |---|---|
-| **CONFIGURAR** | Prepare the show: add/edit apps and media, test app Demo/Live launch, activate stage screen |
-| **ENSAYO** | Rehearse: reorder the rundown, launch apps in Demo/Live, play videos |
+| **CONFIGURAR** | Prepare the show: manage ADB device, Qt apps, Android apps, and media; test launches |
+| **ENSAYO** | Rehearse: reorder rundown, launch Qt apps and Android apps, play videos |
 | **SHOW** | Run the show live: navigate scenes in order with Anterior / Activar / Siguiente |
 
 ---
@@ -101,7 +101,7 @@ The stage window is a fullscreen borderless window on a secondary screen (projec
 
 ```
 orchestrator.exe
-config/           ← generated at runtime (apps.json, media.json, rundown.json, stage.json)
+config/           ← generated at runtime (apps.json, android.json, media.json, rundown.json, stage.json)
 apps/             ← external show apps, each self-contained
 media/            ← video and audio files
 sounds/           ← (reserved)
@@ -109,6 +109,37 @@ lights/           ← (reserved)
 logs/             ← (reserved)
 tools/            ← (reserved)
 ```
+
+---
+
+## Android device management
+
+The orchestrator manages Android show apps via ADB.
+
+**CONFIGURAR → tab ADB:**
+
+| Control | Function |
+|---|---|
+| Status label | Shows `● <serial>` when connected, `○ Sin dispositivo` otherwise |
+| Detectar | Runs `adb devices` and updates the status label |
+| Probar | Runs `getprop ro.product.model`; if successful, vibrates the device and shows the model in the log |
+| Desconectar | Clears connection state; for WiFi also runs `adb disconnect` |
+| IP:Puerto WiFi + Conectar | Runs `adb connect <ip:port>` for wireless ADB |
+
+**CONFIGURAR → tab Android:** add/edit/delete Android app entries (package, activity, WS port).
+
+**ENSAYO → Apps Android section:** Lanzar / Parar each Android app. ADB status shown next to the section header.
+
+**How Android app launch works:**
+1. If `wsPort > 0`, the orchestrator runs `adb reverse tcp:<port> tcp:<port>` (ADB reverse tunnel).
+2. Then runs `adb shell am start -n <package>/<activity>`.
+3. The Android app connects to `localhost:<port>` — no IP configuration needed on the device.
+
+**Pre-show ADB setup (once per session):**
+1. Connect the Android device by USB (or enable Wireless Debugging on Android 11+).
+2. Open CONFIGURAR → ADB tab. Press **Detectar** — the status should show `● <serial>`.
+3. Press **Probar** to confirm the device responds (phone vibrates + model appears in log).
+4. Optionally disconnect USB and use WiFi ADB for a cable-free show.
 
 **DLL policy:** each external app must have its own copy of Qt DLLs next to its executable. Do not share DLLs between apps. Robustness for live performance beats disk efficiency.
 
