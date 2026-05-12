@@ -11,6 +11,8 @@ public:
 
     void connectWifi(const QString& ipPort);
     void detectDevice();
+    void disconnectDevice();
+    void testConnection();
     void setupReverseTunnel(quint16 port);
     void launchApp(const QString& package, const QString& activity);
     void stopApp(const QString& package);

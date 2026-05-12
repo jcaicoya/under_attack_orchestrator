@@ -39,9 +39,7 @@
       "closePolicy": "terminateThenKill",
       "expectedWindowTitle": "",
       "category": "",
-      "androidPackage": "com.cuarzopolar.companion",
-      "androidActivity": ".MainActivity",
-      "androidWsPort": 8765
+      "linkedAndroidId": "companion"
     },
     {
       "id": "password",
@@ -55,9 +53,7 @@
       "closePolicy": "terminateThenKill",
       "expectedWindowTitle": "",
       "category": "",
-      "androidPackage": "com.cuarzopolar.password",
-      "androidActivity": ".MainActivity",
-      "androidWsPort": 8767
+      "linkedAndroidId": "password-android"
     },
     {
       "id": "qr",

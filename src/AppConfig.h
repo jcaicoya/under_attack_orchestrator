@@ -2,7 +2,6 @@
 #include <QString>
 #include <QStringList>
 #include <QList>
-#include <QtTypes>
 
 struct AppEntry {
     QString    id;
@@ -15,10 +14,7 @@ struct AppEntry {
     QString    closePolicy         = "terminateThenKill";
     QString    expectedWindowTitle;
     QString    category;
-    // Android companion (optional — empty androidPackage means no companion)
-    QString    androidPackage;
-    QString    androidActivity     = ".MainActivity";
-    quint16    androidWsPort       = 0;
+    QString    linkedAndroidId;    // optional — references an AndroidEntry id
 };
 
 class AppConfig {

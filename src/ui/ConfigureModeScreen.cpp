@@ -3,13 +3,18 @@
 #include "CyberTheme.h"
 #include <QVBoxLayout>
 #include <QHBoxLayout>
+#include <QFormLayout>
 #include <QHeaderView>
 #include <QLabel>
+#include <QLineEdit>
+#include <QSpinBox>
 #include <QScrollBar>
 #include <QFileInfo>
 #include <QFileDialog>
 #include <QDir>
 #include <QMessageBox>
+#include <QDialog>
+#include <QDialogButtonBox>
 #include <QKeyEvent>
 #include <QShowEvent>
 #include <QStyle>
@@ -18,6 +23,7 @@
 #include <QJsonDocument>
 #include <QJsonObject>
 #include <QFile>
+#include <QTabWidget>
 
 // ---------- helpers ----------------------------------------------------------
 
@@ -26,7 +32,7 @@ static QString appStateLabel(AppState s) {
         case AppState::Stopped:  return "LISTA";
         case AppState::Starting: return "EJECUTÁNDOSE";
         case AppState::Running:  return "EJECUTÁNDOSE";
-        case AppState::Stopping: return "EJECUTÁNDOSE";
+        case AppState::Stopping: return "PARANDO";
         case AppState::Error:    return "ERROR";
     }
     return {};
@@ -39,6 +45,22 @@ static QColor appStateColor(AppState s) {
         case AppState::Running:  return CyberTheme::color(CyberTheme::AccentGreen);
         case AppState::Stopping: return CyberTheme::color(CyberTheme::Warning);
         case AppState::Error:    return CyberTheme::color(CyberTheme::Error);
+    }
+    return {};
+}
+
+static QString androidStateLabel(AndroidState s) {
+    switch (s) {
+        case AndroidState::Stopped: return "PARADA";
+        case AndroidState::Running: return "EN MARCHA";
+    }
+    return {};
+}
+
+static QColor androidStateColor(AndroidState s) {
+    switch (s) {
+        case AndroidState::Stopped: return CyberTheme::color(CyberTheme::TextMuted);
+        case AndroidState::Running: return CyberTheme::color(CyberTheme::AccentGreen);
     }
     return {};
 }
@@ -112,19 +134,9 @@ static QWidget* makeLaunchCell(QPushButton* demoBtn, QPushButton* liveBtn, QWidg
 static void setCellButtonsEnabled(QTableWidget* table, int row, int col, bool enabled) {
     QWidget* cell = table->cellWidget(row, col);
     if (!cell) return;
-    if (auto* button = qobject_cast<QPushButton*>(cell)) {
+    if (auto* button = qobject_cast<QPushButton*>(cell)) { button->setEnabled(enabled); return; }
+    for (auto* button : cell->findChildren<QPushButton*>())
         button->setEnabled(enabled);
-        return;
-    }
-    const auto buttons = cell->findChildren<QPushButton*>();
-    for (auto* button : buttons)
-        button->setEnabled(enabled);
-}
-
-static QLabel* makeSectionLabel(const QString& text, QWidget* parent) {
-    auto* lbl = new QLabel(text, parent);
-    lbl->setObjectName("FieldLabel");
-    return lbl;
 }
 
 static const QString TABLE_STYLE = QStringLiteral(R"QSS(
@@ -155,33 +167,42 @@ static const QString TABLE_STYLE = QStringLiteral(R"QSS(
 ConfigureModeScreen::ConfigureModeScreen(const QString& packageRoot, QWidget* parent)
     : QWidget(parent)
     , m_packageRoot(packageRoot)
-    , m_manager(new AppManager(packageRoot, this))
+    , m_appManager(new AppManager(packageRoot, this))
+    , m_adb(new AdbManager(this))
+    , m_androidManager(new AndroidManager(m_adb, this))
     , m_mediaManager(new MediaManager(this))
 {
     setFocusPolicy(Qt::StrongFocus);
 
-    connect(m_manager,      &AppManager::logMessage,   &Logger::instance(), &Logger::log);
-    connect(m_mediaManager, &MediaManager::logMessage, &Logger::instance(), &Logger::log);
-    connect(&Logger::instance(), &Logger::messageLogged, this, &ConfigureModeScreen::onLogMessage);
-    connect(m_manager,      &AppManager::stateChanged,   this, &ConfigureModeScreen::onStateChanged);
-    connect(m_mediaManager, &MediaManager::stateChanged, this, &ConfigureModeScreen::onMediaStateChanged);
+    connect(m_appManager,      &AppManager::logMessage,     &Logger::instance(), &Logger::log);
+    connect(m_mediaManager,    &MediaManager::logMessage,   &Logger::instance(), &Logger::log);
+    connect(m_androidManager,  &AndroidManager::logMessage, &Logger::instance(), &Logger::log);
+    connect(m_adb,             &AdbManager::log,            &Logger::instance(), &Logger::log);
+
+    connect(m_appManager,     &AppManager::stateChanged,     this, &ConfigureModeScreen::onAppStateChanged);
+    connect(m_androidManager, &AndroidManager::stateChanged, this, &ConfigureModeScreen::onAndroidStateChanged);
+    connect(m_mediaManager,   &MediaManager::stateChanged,   this, &ConfigureModeScreen::onMediaStateChanged);
+    connect(&Logger::instance(), &Logger::messageLogged,     this, &ConfigureModeScreen::onLogMessage);
+
+    connect(m_adb, &AdbManager::deviceFound, this, [this](const QString& serial) {
+        if (m_adbStatusLabel)
+            m_adbStatusLabel->setText(QString("● Conectado: %1").arg(serial));
+    });
+    connect(m_adb, &AdbManager::deviceLost, this, [this]() {
+        if (m_adbStatusLabel)
+            m_adbStatusLabel->setText("○ Sin dispositivo");
+    });
 
     buildUI();
-    loadConfig();
-    populateTable();
+    loadAppsConfig();
+    populateAppsTable();
+    loadAndroidConfig();
+    populateAndroidTable();
     loadMediaConfig();
     populateMediaTable();
 
-    connect(qGuiApp, &QGuiApplication::screenAdded, this, [this](QScreen*) {
-        populateScreenCombo();
-        loadStageConfig();
-        updateStageStatus();
-    });
-    connect(qGuiApp, &QGuiApplication::screenRemoved, this, [this](QScreen*) {
-        populateScreenCombo();
-        loadStageConfig();
-        updateStageStatus();
-    });
+    connect(qGuiApp, &QGuiApplication::screenAdded,   this, [this](QScreen*) { populateScreenCombo(); loadStageConfig(); updateStageStatus(); });
+    connect(qGuiApp, &QGuiApplication::screenRemoved, this, [this](QScreen*) { populateScreenCombo(); loadStageConfig(); updateStageStatus(); });
 }
 
 // ---------- UI ---------------------------------------------------------------
@@ -197,88 +218,191 @@ void ConfigureModeScreen::buildUI() {
     title->setObjectName("ScreenTitle");
     header->addWidget(title);
     header->addStretch();
-    auto* escHint = new QLabel("2 · Ensayo   3 · Show   →  Cambiar modo   Esc · Selector", this);
-    escHint->setObjectName("MutedLabel");
-    header->addWidget(escHint);
+    auto* hint = new QLabel("2 · Ensayo   3 · Show   Esc · Selector", this);
+    hint->setObjectName("MutedLabel");
+    header->addWidget(hint);
     root->addLayout(header);
 
-    // ── Escenario ─────────────────────────────────────────────────────────────
+    // Stage row
     auto* stageRow = new QHBoxLayout();
     stageRow->setSpacing(8);
-    auto* stageHeadLabel = new QLabel("Escenario", this);
-    stageHeadLabel->setObjectName("FieldLabel");
-    stageRow->addWidget(stageHeadLabel);
-
+    auto* stageLabel = new QLabel("Escenario", this);
+    stageLabel->setObjectName("FieldLabel");
+    stageRow->addWidget(stageLabel);
     m_screenCombo = new QComboBox(this);
     m_screenCombo->setFocusPolicy(Qt::NoFocus);
     m_screenCombo->setMinimumWidth(260);
     stageRow->addWidget(m_screenCombo);
-
     m_stageActivateBtn = new QPushButton("Activar", this);
     m_stageActivateBtn->setFocusPolicy(Qt::NoFocus);
     m_stageActivateBtn->setMinimumWidth(90);
-    connect(m_stageActivateBtn, &QPushButton::clicked,
-            this, &ConfigureModeScreen::onActivateStage);
+    connect(m_stageActivateBtn, &QPushButton::clicked, this, &ConfigureModeScreen::onActivateStage);
     stageRow->addWidget(m_stageActivateBtn);
-
     stageRow->addStretch();
     root->addLayout(stageRow);
 
-    // ── Aplicaciones ─────────────────────────────────────────────────────────
-    root->addWidget(makeSectionLabel("Aplicaciones", this));
+    // ── Tabs ──────────────────────────────────────────────────────────────────
+    auto* tabs = new QTabWidget(this);
+    tabs->setFocusPolicy(Qt::NoFocus);
+    root->addWidget(tabs, 1);
 
-    m_table = new QTableWidget(0, 5, this);
-    m_table->setHorizontalHeaderLabels({"Aplicación", "Iniciar", "Parar", "Estado", ""});
-    m_table->horizontalHeader()->setSectionResizeMode(0, QHeaderView::Stretch);
-    m_table->horizontalHeader()->setSectionResizeMode(1, QHeaderView::Fixed); m_table->setColumnWidth(1, 180);
-    m_table->horizontalHeader()->setSectionResizeMode(2, QHeaderView::Fixed); m_table->setColumnWidth(2, 104);
-    m_table->horizontalHeader()->setSectionResizeMode(3, QHeaderView::Fixed); m_table->setColumnWidth(3, 120);
-    m_table->horizontalHeader()->setSectionResizeMode(4, QHeaderView::Fixed); m_table->setColumnWidth(4, 68);
-    m_table->setSelectionMode(QAbstractItemView::NoSelection);
-    m_table->setEditTriggers(QAbstractItemView::NoEditTriggers);
-    m_table->setFocusPolicy(Qt::NoFocus);
-    m_table->verticalHeader()->setVisible(false);
-    m_table->setShowGrid(false);
-    m_table->setStyleSheet(TABLE_STYLE);
-    root->addWidget(m_table, 2);
+    // ── Tab: ADB ──────────────────────────────────────────────────────────────
+    {
+        auto* page = new QWidget(tabs);
+        auto* lay  = new QVBoxLayout(page);
+        lay->setContentsMargins(12, 12, 12, 12);
+        lay->setSpacing(12);
 
-    auto* appBar = new QHBoxLayout();
-    m_addBtn = new QPushButton("+ Añadir", this);
-    m_addBtn->setFocusPolicy(Qt::NoFocus);
-    m_addBtn->setMinimumWidth(100);
-    connect(m_addBtn, &QPushButton::clicked, this, &ConfigureModeScreen::addApp);
-    appBar->addWidget(m_addBtn);
-    appBar->addStretch();
-    root->addLayout(appBar);
+        // Row 1: device status + Detectar + Desconectar
+        auto* statusRow = new QHBoxLayout();
+        statusRow->setSpacing(8);
+        m_adbStatusLabel = new QLabel("○ Sin dispositivo", page);
+        m_adbStatusLabel->setObjectName("StatusInfo");
+        statusRow->addWidget(m_adbStatusLabel);
+        auto* detectBtn = new QPushButton("Detectar", page);
+        detectBtn->setFocusPolicy(Qt::NoFocus);
+        connect(detectBtn, &QPushButton::clicked, this, [this]() { m_adb->detectDevice(); });
+        statusRow->addWidget(detectBtn);
+        auto* testBtn = new QPushButton("Probar", page);
+        testBtn->setFocusPolicy(Qt::NoFocus);
+        connect(testBtn, &QPushButton::clicked, this, [this]() { m_adb->testConnection(); });
+        statusRow->addWidget(testBtn);
+        auto* disconnectBtn = new QPushButton("Desconectar", page);
+        disconnectBtn->setFocusPolicy(Qt::NoFocus);
+        connect(disconnectBtn, &QPushButton::clicked, this, [this]() { m_adb->disconnectDevice(); });
+        statusRow->addWidget(disconnectBtn);
+        statusRow->addStretch();
+        lay->addLayout(statusRow);
 
-    // ── Multimedia ───────────────────────────────────────────────────────────
-    root->addWidget(makeSectionLabel("Multimedia", this));
+        // Row 2: WiFi connect (IP:port + Conectar)
+        auto* wifiRow = new QHBoxLayout();
+        wifiRow->setSpacing(8);
+        auto* ipLabel = new QLabel("IP:Puerto WiFi", page);
+        ipLabel->setObjectName("FieldLabel");
+        wifiRow->addWidget(ipLabel);
+        auto* ipEdit = new QLineEdit(page);
+        ipEdit->setPlaceholderText("192.168.1.x:5555");
+        ipEdit->setMinimumWidth(180);
+        ipEdit->setMaximumWidth(260);
+        wifiRow->addWidget(ipEdit);
+        auto* connectBtn = new QPushButton("Conectar", page);
+        connectBtn->setFocusPolicy(Qt::NoFocus);
+        connect(connectBtn, &QPushButton::clicked, this, [this, ipEdit]() {
+            const QString ip = ipEdit->text().trimmed();
+            if (!ip.isEmpty()) m_adb->connectWifi(ip);
+        });
+        wifiRow->addWidget(connectBtn);
+        wifiRow->addStretch();
+        lay->addLayout(wifiRow);
+        lay->addStretch();
 
-    m_mediaTable = new QTableWidget(0, 6, this);
-    m_mediaTable->setHorizontalHeaderLabels({"Tipo", "Nombre", "Iniciar", "Parar", "Estado", ""});
-    m_mediaTable->horizontalHeader()->setSectionResizeMode(0, QHeaderView::Fixed); m_mediaTable->setColumnWidth(0, 76);
-    m_mediaTable->horizontalHeader()->setSectionResizeMode(1, QHeaderView::Stretch);
-    m_mediaTable->horizontalHeader()->setSectionResizeMode(2, QHeaderView::Fixed); m_mediaTable->setColumnWidth(2, 104);
-    m_mediaTable->horizontalHeader()->setSectionResizeMode(3, QHeaderView::Fixed); m_mediaTable->setColumnWidth(3, 104);
-    m_mediaTable->horizontalHeader()->setSectionResizeMode(4, QHeaderView::Fixed); m_mediaTable->setColumnWidth(4, 120);
-    m_mediaTable->horizontalHeader()->setSectionResizeMode(5, QHeaderView::Fixed); m_mediaTable->setColumnWidth(5, 68);
-    m_mediaTable->setSelectionMode(QAbstractItemView::NoSelection);
-    m_mediaTable->setEditTriggers(QAbstractItemView::NoEditTriggers);
-    m_mediaTable->setFocusPolicy(Qt::NoFocus);
-    m_mediaTable->verticalHeader()->setVisible(false);
-    m_mediaTable->setShowGrid(false);
-    m_mediaTable->setStyleSheet(TABLE_STYLE);
-    root->addWidget(m_mediaTable, 2);
+        tabs->addTab(page, "ADB");
+    }
 
-    auto* mediaBar = new QHBoxLayout();
-    m_addMediaBtn = new QPushButton("+ Añadir multimedia", this);
-    m_addMediaBtn->setFocusPolicy(Qt::NoFocus);
-    m_addMediaBtn->setMinimumWidth(140);
-    connect(m_addMediaBtn, &QPushButton::clicked, this, &ConfigureModeScreen::addMedia);
-    mediaBar->addWidget(m_addMediaBtn);
-    mediaBar->addStretch();
-    root->addLayout(mediaBar);
+    // ── Tab: Qt ───────────────────────────────────────────────────────────────
+    {
+        auto* page = new QWidget(tabs);
+        auto* lay  = new QVBoxLayout(page);
+        lay->setContentsMargins(8, 8, 8, 8);
+        lay->setSpacing(6);
 
+        m_appsTable = new QTableWidget(0, 5, page);
+        m_appsTable->setHorizontalHeaderLabels({"Aplicación", "Iniciar", "Parar", "Estado", ""});
+        m_appsTable->horizontalHeader()->setSectionResizeMode(0, QHeaderView::Stretch);
+        m_appsTable->horizontalHeader()->setSectionResizeMode(1, QHeaderView::Fixed); m_appsTable->setColumnWidth(1, 180);
+        m_appsTable->horizontalHeader()->setSectionResizeMode(2, QHeaderView::Fixed); m_appsTable->setColumnWidth(2, 104);
+        m_appsTable->horizontalHeader()->setSectionResizeMode(3, QHeaderView::Fixed); m_appsTable->setColumnWidth(3, 120);
+        m_appsTable->horizontalHeader()->setSectionResizeMode(4, QHeaderView::Fixed); m_appsTable->setColumnWidth(4, 68);
+        m_appsTable->setSelectionMode(QAbstractItemView::NoSelection);
+        m_appsTable->setEditTriggers(QAbstractItemView::NoEditTriggers);
+        m_appsTable->setFocusPolicy(Qt::NoFocus);
+        m_appsTable->verticalHeader()->setVisible(false);
+        m_appsTable->setShowGrid(false);
+        m_appsTable->setStyleSheet(TABLE_STYLE);
+        lay->addWidget(m_appsTable, 1);
+
+        auto* bar = new QHBoxLayout();
+        auto* addBtn = new QPushButton("+ Añadir", page);
+        addBtn->setFocusPolicy(Qt::NoFocus);
+        addBtn->setMinimumWidth(100);
+        connect(addBtn, &QPushButton::clicked, this, &ConfigureModeScreen::addApp);
+        bar->addWidget(addBtn);
+        bar->addStretch();
+        lay->addLayout(bar);
+
+        tabs->addTab(page, "Qt");
+    }
+
+    // ── Tab: Android ──────────────────────────────────────────────────────────
+    {
+        auto* page = new QWidget(tabs);
+        auto* lay  = new QVBoxLayout(page);
+        lay->setContentsMargins(8, 8, 8, 8);
+        lay->setSpacing(6);
+
+        m_androidTable = new QTableWidget(0, 5, page);
+        m_androidTable->setHorizontalHeaderLabels({"Aplicación", "Lanzar", "Parar", "Estado", ""});
+        m_androidTable->horizontalHeader()->setSectionResizeMode(0, QHeaderView::Stretch);
+        m_androidTable->horizontalHeader()->setSectionResizeMode(1, QHeaderView::Fixed); m_androidTable->setColumnWidth(1, 104);
+        m_androidTable->horizontalHeader()->setSectionResizeMode(2, QHeaderView::Fixed); m_androidTable->setColumnWidth(2, 104);
+        m_androidTable->horizontalHeader()->setSectionResizeMode(3, QHeaderView::Fixed); m_androidTable->setColumnWidth(3, 120);
+        m_androidTable->horizontalHeader()->setSectionResizeMode(4, QHeaderView::Fixed); m_androidTable->setColumnWidth(4, 68);
+        m_androidTable->setSelectionMode(QAbstractItemView::NoSelection);
+        m_androidTable->setEditTriggers(QAbstractItemView::NoEditTriggers);
+        m_androidTable->setFocusPolicy(Qt::NoFocus);
+        m_androidTable->verticalHeader()->setVisible(false);
+        m_androidTable->setShowGrid(false);
+        m_androidTable->setStyleSheet(TABLE_STYLE);
+        lay->addWidget(m_androidTable, 1);
+
+        auto* bar = new QHBoxLayout();
+        auto* addBtn = new QPushButton("+ Añadir", page);
+        addBtn->setFocusPolicy(Qt::NoFocus);
+        addBtn->setMinimumWidth(100);
+        connect(addBtn, &QPushButton::clicked, this, &ConfigureModeScreen::addAndroidApp);
+        bar->addWidget(addBtn);
+        bar->addStretch();
+        lay->addLayout(bar);
+
+        tabs->addTab(page, "Android");
+    }
+
+    // ── Tab: Multimedia ───────────────────────────────────────────────────────
+    {
+        auto* page = new QWidget(tabs);
+        auto* lay  = new QVBoxLayout(page);
+        lay->setContentsMargins(8, 8, 8, 8);
+        lay->setSpacing(6);
+
+        m_mediaTable = new QTableWidget(0, 6, page);
+        m_mediaTable->setHorizontalHeaderLabels({"Tipo", "Nombre", "Iniciar", "Parar", "Estado", ""});
+        m_mediaTable->horizontalHeader()->setSectionResizeMode(0, QHeaderView::Fixed); m_mediaTable->setColumnWidth(0, 76);
+        m_mediaTable->horizontalHeader()->setSectionResizeMode(1, QHeaderView::Stretch);
+        m_mediaTable->horizontalHeader()->setSectionResizeMode(2, QHeaderView::Fixed); m_mediaTable->setColumnWidth(2, 104);
+        m_mediaTable->horizontalHeader()->setSectionResizeMode(3, QHeaderView::Fixed); m_mediaTable->setColumnWidth(3, 104);
+        m_mediaTable->horizontalHeader()->setSectionResizeMode(4, QHeaderView::Fixed); m_mediaTable->setColumnWidth(4, 120);
+        m_mediaTable->horizontalHeader()->setSectionResizeMode(5, QHeaderView::Fixed); m_mediaTable->setColumnWidth(5, 68);
+        m_mediaTable->setSelectionMode(QAbstractItemView::NoSelection);
+        m_mediaTable->setEditTriggers(QAbstractItemView::NoEditTriggers);
+        m_mediaTable->setFocusPolicy(Qt::NoFocus);
+        m_mediaTable->verticalHeader()->setVisible(false);
+        m_mediaTable->setShowGrid(false);
+        m_mediaTable->setStyleSheet(TABLE_STYLE);
+        lay->addWidget(m_mediaTable, 1);
+
+        auto* bar = new QHBoxLayout();
+        auto* addBtn = new QPushButton("+ Añadir multimedia", page);
+        addBtn->setFocusPolicy(Qt::NoFocus);
+        addBtn->setMinimumWidth(140);
+        connect(addBtn, &QPushButton::clicked, this, &ConfigureModeScreen::addMedia);
+        bar->addWidget(addBtn);
+        bar->addStretch();
+        lay->addLayout(bar);
+
+        tabs->addTab(page, "Multimedia");
+    }
+
+    // Log panel
     m_logPanel = new QTextEdit(this);
     m_logPanel->setReadOnly(true);
     m_logPanel->setStyleSheet(
@@ -294,111 +418,100 @@ void ConfigureModeScreen::buildUI() {
     );
     m_logPanel->setFixedHeight(140);
     m_logPanel->setVisible(false);
-    root->addWidget(m_logPanel, 1);
+    root->addWidget(m_logPanel);
 }
 
-// ---------- apps: load / populate / update -----------------------------------
+// ---------- Qt apps: load / populate / update --------------------------------
 
-void ConfigureModeScreen::loadConfig() {
-    m_configPath = QDir(m_packageRoot).filePath("config/apps.json");
-
-    if (!QFileInfo::exists(m_configPath)) {
+void ConfigureModeScreen::loadAppsConfig() {
+    m_appsConfigPath = QDir(m_packageRoot).filePath("config/apps.json");
+    if (!QFileInfo::exists(m_appsConfigPath)) {
         Logger::instance().log("config/apps.json not found — creating default.");
-        if (!AppConfig::copyDefaultTo(m_configPath))
-            Logger::instance().log("WARNING: Could not write default config.");
+        if (!AppConfig::copyDefaultTo(m_appsConfigPath))
+            Logger::instance().log("WARNING: Could not write default apps config.");
     }
-
-    if (!m_config.loadFromFile(m_configPath)) {
+    if (!m_appsConfig.loadFromFile(m_appsConfigPath)) {
         Logger::instance().log("ERROR: Failed to parse config/apps.json.");
-        QMessageBox::critical(this, "Config Error",
-            "Could not load config/apps.json.\nCheck the log for details.");
         return;
     }
-
-    m_manager->loadApps(m_config.apps());
-    Logger::instance().log(QString("Apps cargadas: %1.").arg(m_config.apps().size()));
+    m_appManager->loadApps(m_appsConfig.apps());
+    Logger::instance().log(QString("Apps Qt cargadas: %1.").arg(m_appsConfig.apps().size()));
 }
 
-void ConfigureModeScreen::populateTable() {
-    m_table->setRowCount(0);
-    const auto& entries = m_manager->entries();
-
-    for (int row = 0; row < entries.size(); ++row) {
-        const AppEntry& e = entries[row];
-        m_table->insertRow(row);
+void ConfigureModeScreen::populateAppsTable() {
+    m_appsTable->setRowCount(0);
+    for (int row = 0; row < m_appManager->entries().size(); ++row) {
+        const AppEntry& e = m_appManager->entries()[row];
+        m_appsTable->insertRow(row);
 
         auto* nameItem = new QTableWidgetItem(e.name);
         nameItem->setForeground(CyberTheme::color(CyberTheme::TextPrimary));
-        m_table->setItem(row, 0, nameItem);
+        m_appsTable->setItem(row, 0, nameItem);
 
         auto* demoBtn = new QPushButton("Demo", this);
         auto* liveBtn = new QPushButton("Live", this);
-        auto* stopBtn  = new QPushButton("Parar",   this);
+        auto* stopBtn = new QPushButton("Parar", this);
         demoBtn->setFocusPolicy(Qt::NoFocus);
         liveBtn->setFocusPolicy(Qt::NoFocus);
         stopBtn->setFocusPolicy(Qt::NoFocus);
         stopBtn->setEnabled(false);
 
         const QString id = e.id;
-        connect(demoBtn, &QPushButton::clicked, this, [this, id]() {
-            m_manager->start(id, AppLaunchMode::Demo);
-        });
-        connect(liveBtn, &QPushButton::clicked, this, [this, id]() {
-            m_manager->start(id, AppLaunchMode::Live);
-        });
-        connect(stopBtn,  &QPushButton::clicked, this, [this, id]() { m_manager->stop(id); });
-        m_table->setCellWidget(row, 1, makeLaunchCell(demoBtn, liveBtn, this));
-        m_table->setCellWidget(row, 2, stopBtn);
+        connect(demoBtn, &QPushButton::clicked, this, [this, id]() { m_appManager->start(id, AppLaunchMode::Demo); });
+        connect(liveBtn, &QPushButton::clicked, this, [this, id]() { m_appManager->start(id, AppLaunchMode::Live); });
+        connect(stopBtn, &QPushButton::clicked, this, [this, id]() { m_appManager->stop(id); });
+        m_appsTable->setCellWidget(row, 1, makeLaunchCell(demoBtn, liveBtn, this));
+        m_appsTable->setCellWidget(row, 2, stopBtn);
 
         auto* stateItem = new QTableWidgetItem(appStateLabel(AppState::Stopped));
         stateItem->setForeground(appStateColor(AppState::Stopped));
-        m_table->setItem(row, 3, stateItem);
+        m_appsTable->setItem(row, 3, stateItem);
 
         auto* editBtn = makeIconButton(QStyle::SP_FileDialogDetailedView, "Cambiar ejecutable", this);
         auto* delBtn  = makeDangerIconButton(QStyle::SP_TrashIcon, "Eliminar", this);
         connect(editBtn, &QPushButton::clicked, this, [this, id]() { editApp(id); });
         connect(delBtn,  &QPushButton::clicked, this, [this, id]() { deleteApp(id); });
-        m_table->setCellWidget(row, 4, makeActionCell(editBtn, delBtn, this));
+        m_appsTable->setCellWidget(row, 4, makeActionCell(editBtn, delBtn, this));
 
-        m_table->setRowHeight(row, 44);
+        m_appsTable->setRowHeight(row, 44);
     }
 }
 
-int ConfigureModeScreen::rowForId(const QString& id) const {
-    const auto& entries = m_manager->entries();
+int ConfigureModeScreen::appRowForId(const QString& id) const {
+    const auto& entries = m_appManager->entries();
     for (int i = 0; i < entries.size(); ++i)
         if (entries[i].id == id) return i;
     return -1;
 }
 
-int ConfigureModeScreen::configIndexForId(const QString& id) const {
-    const auto& apps = m_config.apps();
+int ConfigureModeScreen::appConfigIndexForId(const QString& id) const {
+    const auto& apps = m_appsConfig.apps();
     for (int i = 0; i < apps.size(); ++i)
         if (apps[i].id == id) return i;
     return -1;
 }
 
-void ConfigureModeScreen::updateRow(const QString& id) {
-    int row = rowForId(id);
+void ConfigureModeScreen::updateAppRow(const QString& id) {
+    int row = appRowForId(id);
     if (row < 0) return;
-    AppState s = m_manager->state(id);
-    if (auto* item = m_table->item(row, 3)) {
+    AppState s = m_appManager->state(id);
+    if (auto* item = m_appsTable->item(row, 3)) {
         item->setText(appStateLabel(s));
         item->setForeground(appStateColor(s));
     }
     bool canStart = (s == AppState::Stopped || s == AppState::Error);
     bool canStop  = (s == AppState::Starting || s == AppState::Running || s == AppState::Stopping);
-    setCellButtonsEnabled(m_table, row, 1, canStart);
-    if (auto* b = qobject_cast<QPushButton*>(m_table->cellWidget(row, 2))) b->setEnabled(canStop);
+    setCellButtonsEnabled(m_appsTable, row, 1, canStart);
+    if (auto* b = qobject_cast<QPushButton*>(m_appsTable->cellWidget(row, 2))) b->setEnabled(canStop);
 }
 
-// ---------- apps: CRUD -------------------------------------------------------
+// ---------- Qt apps: CRUD ----------------------------------------------------
 
-void ConfigureModeScreen::applyConfigChanges() {
-    if (!m_config.saveToFile(m_configPath))
+void ConfigureModeScreen::applyAppsChanges() {
+    if (!m_appsConfig.saveToFile(m_appsConfigPath))
         Logger::instance().log("ERROR: Could not save config/apps.json.");
-    m_manager->loadApps(m_config.apps());
-    populateTable();
+    m_appManager->loadApps(m_appsConfig.apps());
+    populateAppsTable();
 }
 
 void ConfigureModeScreen::addApp() {
@@ -410,32 +523,30 @@ void ConfigureModeScreen::addApp() {
     AppEntry e;
     e.id               = fi.completeBaseName();
     e.name             = fi.completeBaseName();
-    e.description      = fi.completeBaseName();
     e.executable       = fi.fileName();
     e.workingDirectory = fi.absolutePath();
 
-    if (QMessageBox::question(this, "Añadir aplicación",
+    if (QMessageBox::question(this, "Añadir aplicación Qt",
             QString("¿Añadir '%1'?\n\nEjecutable:  %2\nDirectorio: %3")
                 .arg(e.name, e.executable, e.workingDirectory))
         != QMessageBox::Yes) return;
 
-    m_config.addApp(e);
-    applyConfigChanges();
-    Logger::instance().log(QString("App añadida: %1").arg(e.name));
+    m_appsConfig.addApp(e);
+    applyAppsChanges();
+    Logger::instance().log(QString("App Qt añadida: %1").arg(e.name));
 }
 
 void ConfigureModeScreen::editApp(const QString& id) {
-    int ci = configIndexForId(id);
+    int ci = appConfigIndexForId(id);
     if (ci < 0) return;
 
-    AppState s = m_manager->state(id);
-    if (s != AppState::Stopped && s != AppState::Error) {
+    if (m_appManager->state(id) != AppState::Stopped && m_appManager->state(id) != AppState::Error) {
         QMessageBox::warning(this, "App en ejecución",
-            QString("Para '%1' antes de modificarla.").arg(m_config.apps()[ci].name));
+            QString("Para '%1' antes de modificarla.").arg(m_appsConfig.apps()[ci].name));
         return;
     }
 
-    const AppEntry& current = m_config.apps()[ci];
+    const AppEntry& current = m_appsConfig.apps()[ci];
     QString startDir = QFileInfo::exists(current.workingDirectory)
         ? current.workingDirectory : m_packageRoot;
     QString exePath = QFileDialog::getOpenFileName(
@@ -443,61 +554,219 @@ void ConfigureModeScreen::editApp(const QString& id) {
     if (exePath.isEmpty()) return;
 
     QFileInfo fi(exePath);
-    AppEntry updated        = current;
-    updated.executable      = fi.fileName();
+    AppEntry updated         = current;
+    updated.executable       = fi.fileName();
     updated.workingDirectory = fi.absolutePath();
 
-    if (QMessageBox::question(this, "Actualizar aplicación",
+    if (QMessageBox::question(this, "Actualizar aplicación Qt",
             QString("¿Actualizar '%1'?\n\nEjecutable:  %2\nDirectorio: %3")
                 .arg(updated.name, updated.executable, updated.workingDirectory))
         != QMessageBox::Yes) return;
 
-    m_config.updateApp(ci, updated);
-    applyConfigChanges();
-    Logger::instance().log(QString("App actualizada: %1").arg(updated.name));
+    m_appsConfig.updateApp(ci, updated);
+    applyAppsChanges();
+    Logger::instance().log(QString("App Qt actualizada: %1").arg(updated.name));
 }
 
 void ConfigureModeScreen::deleteApp(const QString& id) {
-    int ci = configIndexForId(id);
+    int ci = appConfigIndexForId(id);
     if (ci < 0) return;
 
-    AppState s = m_manager->state(id);
-    if (s != AppState::Stopped && s != AppState::Error) {
+    if (m_appManager->state(id) != AppState::Stopped && m_appManager->state(id) != AppState::Error) {
         QMessageBox::warning(this, "App en ejecución",
-            QString("Para '%1' antes de eliminarla.").arg(m_config.apps()[ci].name));
+            QString("Para '%1' antes de eliminarla.").arg(m_appsConfig.apps()[ci].name));
         return;
     }
 
-    QString name = m_config.apps()[ci].name;
-    if (QMessageBox::question(this, "Eliminar aplicación",
+    QString name = m_appsConfig.apps()[ci].name;
+    if (QMessageBox::question(this, "Eliminar aplicación Qt",
             QString("¿Eliminar '%1'?").arg(name))
         != QMessageBox::Yes) return;
 
-    m_config.removeApp(ci);
-    applyConfigChanges();
-    Logger::instance().log(QString("App eliminada: %1").arg(name));
+    m_appsConfig.removeApp(ci);
+    applyAppsChanges();
+    Logger::instance().log(QString("App Qt eliminada: %1").arg(name));
 }
 
-// ---------- media: load / populate / update ----------------------------------
+// ---------- Android: load / populate / update --------------------------------
+
+void ConfigureModeScreen::loadAndroidConfig() {
+    m_androidConfigPath = QDir(m_packageRoot).filePath("config/android.json");
+    if (!QFileInfo::exists(m_androidConfigPath)) {
+        Logger::instance().log("config/android.json not found — creating default.");
+        if (!AndroidConfig::copyDefaultTo(m_androidConfigPath))
+            Logger::instance().log("WARNING: Could not write default android config.");
+    }
+    if (!m_androidConfig.loadFromFile(m_androidConfigPath)) {
+        Logger::instance().log("ERROR: Failed to parse config/android.json.");
+        return;
+    }
+    m_androidManager->loadApps(m_androidConfig.apps());
+    Logger::instance().log(QString("Apps Android cargadas: %1.").arg(m_androidConfig.apps().size()));
+}
+
+void ConfigureModeScreen::populateAndroidTable() {
+    m_androidTable->setRowCount(0);
+    for (int row = 0; row < m_androidManager->entries().size(); ++row) {
+        const AndroidEntry& e = m_androidManager->entries()[row];
+        m_androidTable->insertRow(row);
+
+        auto* nameItem = new QTableWidgetItem(e.name);
+        nameItem->setForeground(CyberTheme::color(CyberTheme::TextPrimary));
+        nameItem->setToolTip(e.package);
+        m_androidTable->setItem(row, 0, nameItem);
+
+        auto* launchBtn = new QPushButton("Lanzar", this);
+        auto* stopBtn   = new QPushButton("Parar",  this);
+        launchBtn->setFocusPolicy(Qt::NoFocus);
+        stopBtn->setFocusPolicy(Qt::NoFocus);
+        stopBtn->setEnabled(false);
+
+        const QString id = e.id;
+        connect(launchBtn, &QPushButton::clicked, this, [this, id]() { m_androidManager->start(id); });
+        connect(stopBtn,   &QPushButton::clicked, this, [this, id]() { m_androidManager->stop(id); });
+        m_androidTable->setCellWidget(row, 1, launchBtn);
+        m_androidTable->setCellWidget(row, 2, stopBtn);
+
+        auto* stateItem = new QTableWidgetItem(androidStateLabel(AndroidState::Stopped));
+        stateItem->setForeground(androidStateColor(AndroidState::Stopped));
+        m_androidTable->setItem(row, 3, stateItem);
+
+        auto* editBtn = makeIconButton(QStyle::SP_FileDialogDetailedView, "Editar", this);
+        auto* delBtn  = makeDangerIconButton(QStyle::SP_TrashIcon, "Eliminar", this);
+        connect(editBtn, &QPushButton::clicked, this, [this, id]() { editAndroidApp(id); });
+        connect(delBtn,  &QPushButton::clicked, this, [this, id]() { deleteAndroidApp(id); });
+        m_androidTable->setCellWidget(row, 4, makeActionCell(editBtn, delBtn, this));
+
+        m_androidTable->setRowHeight(row, 44);
+    }
+}
+
+int ConfigureModeScreen::androidRowForId(const QString& id) const {
+    const auto& entries = m_androidManager->entries();
+    for (int i = 0; i < entries.size(); ++i)
+        if (entries[i].id == id) return i;
+    return -1;
+}
+
+int ConfigureModeScreen::androidConfigIndexForId(const QString& id) const {
+    const auto& apps = m_androidConfig.apps();
+    for (int i = 0; i < apps.size(); ++i)
+        if (apps[i].id == id) return i;
+    return -1;
+}
+
+void ConfigureModeScreen::updateAndroidRow(const QString& id) {
+    int row = androidRowForId(id);
+    if (row < 0) return;
+    AndroidState s = m_androidManager->state(id);
+    if (auto* item = m_androidTable->item(row, 3)) {
+        item->setText(androidStateLabel(s));
+        item->setForeground(androidStateColor(s));
+    }
+    bool running = (s == AndroidState::Running);
+    if (auto* b = qobject_cast<QPushButton*>(m_androidTable->cellWidget(row, 1))) b->setEnabled(!running);
+    if (auto* b = qobject_cast<QPushButton*>(m_androidTable->cellWidget(row, 2))) b->setEnabled(running);
+}
+
+// ---------- Android: CRUD ----------------------------------------------------
+
+bool ConfigureModeScreen::showAndroidDialog(AndroidEntry& entry, const QString& title) {
+    auto* dlg = new QDialog(this);
+    dlg->setWindowTitle(title);
+    dlg->setMinimumWidth(400);
+
+    auto* form = new QFormLayout(dlg);
+    form->setContentsMargins(16, 16, 16, 8);
+    form->setSpacing(10);
+
+    auto* nameEdit     = new QLineEdit(entry.name,     dlg);
+    auto* packageEdit  = new QLineEdit(entry.package,  dlg);
+    auto* activityEdit = new QLineEdit(entry.activity, dlg);
+    auto* portSpin     = new QSpinBox(dlg);
+    portSpin->setRange(0, 65535);
+    portSpin->setValue(entry.wsPort);
+    portSpin->setSpecialValueText("Sin túnel");
+
+    form->addRow("Nombre:",    nameEdit);
+    form->addRow("Paquete:",   packageEdit);
+    form->addRow("Actividad:", activityEdit);
+    form->addRow("Puerto WS:", portSpin);
+
+    auto* buttons = new QDialogButtonBox(QDialogButtonBox::Ok | QDialogButtonBox::Cancel, dlg);
+    form->addRow(buttons);
+    connect(buttons, &QDialogButtonBox::accepted, dlg, &QDialog::accept);
+    connect(buttons, &QDialogButtonBox::rejected, dlg, &QDialog::reject);
+
+    if (dlg->exec() != QDialog::Accepted) return false;
+
+    entry.name     = nameEdit->text().trimmed();
+    entry.package  = packageEdit->text().trimmed();
+    entry.activity = activityEdit->text().trimmed();
+    if (entry.activity.isEmpty()) entry.activity = ".MainActivity";
+    entry.wsPort   = static_cast<quint16>(portSpin->value());
+    return !entry.name.isEmpty() && !entry.package.isEmpty();
+}
+
+void ConfigureModeScreen::applyAndroidChanges() {
+    if (!m_androidConfig.saveToFile(m_androidConfigPath))
+        Logger::instance().log("ERROR: Could not save config/android.json.");
+    m_androidManager->loadApps(m_androidConfig.apps());
+    populateAndroidTable();
+}
+
+void ConfigureModeScreen::addAndroidApp() {
+    AndroidEntry e;
+    e.activity = ".MainActivity";
+    if (!showAndroidDialog(e, "Añadir app Android")) return;
+    e.id = e.package;   // use package as stable id
+    m_androidConfig.addApp(e);
+    applyAndroidChanges();
+    Logger::instance().log(QString("App Android añadida: %1").arg(e.name));
+}
+
+void ConfigureModeScreen::editAndroidApp(const QString& id) {
+    int ci = androidConfigIndexForId(id);
+    if (ci < 0) return;
+
+    AndroidEntry updated = m_androidConfig.apps()[ci];
+    if (!showAndroidDialog(updated, "Editar app Android")) return;
+
+    m_androidConfig.updateApp(ci, updated);
+    applyAndroidChanges();
+    Logger::instance().log(QString("App Android actualizada: %1").arg(updated.name));
+}
+
+void ConfigureModeScreen::deleteAndroidApp(const QString& id) {
+    int ci = androidConfigIndexForId(id);
+    if (ci < 0) return;
+
+    QString name = m_androidConfig.apps()[ci].name;
+    if (QMessageBox::question(this, "Eliminar app Android",
+            QString("¿Eliminar '%1'?").arg(name))
+        != QMessageBox::Yes) return;
+
+    m_androidConfig.removeApp(ci);
+    applyAndroidChanges();
+    Logger::instance().log(QString("App Android eliminada: %1").arg(name));
+}
+
+// ---------- Media: load / populate / update ----------------------------------
 
 void ConfigureModeScreen::loadMediaConfig() {
     m_mediaConfigPath = QDir(m_packageRoot).filePath("config/media.json");
-
     if (!m_mediaConfig.loadFromFile(m_mediaConfigPath)) {
         Logger::instance().log("ERROR: Failed to parse config/media.json.");
         return;
     }
-
     m_mediaManager->loadMedia(m_mediaConfig.items());
     Logger::instance().log(QString("Media cargado: %1 archivo(s).").arg(m_mediaConfig.items().size()));
 }
 
 void ConfigureModeScreen::populateMediaTable() {
     m_mediaTable->setRowCount(0);
-    const auto& entries = m_mediaManager->entries();
-
-    for (int row = 0; row < entries.size(); ++row) {
-        const MediaEntry& e = entries[row];
+    for (int row = 0; row < m_mediaManager->entries().size(); ++row) {
+        const MediaEntry& e = m_mediaManager->entries()[row];
         m_mediaTable->insertRow(row);
 
         bool isVideo = (e.type == "video");
@@ -511,7 +780,7 @@ void ConfigureModeScreen::populateMediaTable() {
         m_mediaTable->setItem(row, 1, nameItem);
 
         auto* playBtn = new QPushButton("Iniciar", this);
-        auto* stopBtn = new QPushButton("Parar",      this);
+        auto* stopBtn = new QPushButton("Parar",   this);
         playBtn->setFocusPolicy(Qt::NoFocus);
         stopBtn->setFocusPolicy(Qt::NoFocus);
         stopBtn->setEnabled(false);
@@ -564,7 +833,7 @@ void ConfigureModeScreen::updateMediaRow(const QString& id) {
     if (auto* b = qobject_cast<QPushButton*>(m_mediaTable->cellWidget(row, 3))) b->setEnabled(canStop);
 }
 
-// ---------- media: CRUD ------------------------------------------------------
+// ---------- Media: CRUD ------------------------------------------------------
 
 void ConfigureModeScreen::applyMediaChanges() {
     if (!m_mediaConfig.saveToFile(m_mediaConfigPath))
@@ -581,14 +850,13 @@ void ConfigureModeScreen::addMedia() {
 
     QFileInfo fi(filePath);
     MediaEntry e;
-    e.id      = fi.completeBaseName();
-    e.name    = fi.completeBaseName();
-    e.type    = mediaTypeForPath(filePath);
-    e.path    = fi.absoluteFilePath();
+    e.id   = fi.completeBaseName();
+    e.name = fi.completeBaseName();
+    e.type = mediaTypeForPath(filePath);
+    e.path = fi.absoluteFilePath();
 
     if (QMessageBox::question(this, "Añadir multimedia",
-            QString("¿Añadir '%1'?\n\nArchivo: %2\nTipo: %3")
-                .arg(e.name, e.path, e.type))
+            QString("¿Añadir '%1'?\n\nArchivo: %2\nTipo: %3").arg(e.name, e.path, e.type))
         != QMessageBox::Yes) return;
 
     m_mediaConfig.addItem(e);
@@ -600,8 +868,7 @@ void ConfigureModeScreen::editMedia(const QString& id) {
     int ci = mediaConfigIndexForId(id);
     if (ci < 0) return;
 
-    if (m_mediaManager->state(id) != MediaState::Stopped &&
-        m_mediaManager->state(id) != MediaState::Error) {
+    if (m_mediaManager->state(id) != MediaState::Stopped && m_mediaManager->state(id) != MediaState::Error) {
         QMessageBox::warning(this, "Media en reproducción",
             QString("Para '%1' antes de modificarlo.").arg(m_mediaConfig.items()[ci].name));
         return;
@@ -635,8 +902,7 @@ void ConfigureModeScreen::deleteMedia(const QString& id) {
     int ci = mediaConfigIndexForId(id);
     if (ci < 0) return;
 
-    if (m_mediaManager->state(id) != MediaState::Stopped &&
-        m_mediaManager->state(id) != MediaState::Error) {
+    if (m_mediaManager->state(id) != MediaState::Stopped && m_mediaManager->state(id) != MediaState::Error) {
         QMessageBox::warning(this, "Media en reproducción",
             QString("Para '%1' antes de eliminarlo.").arg(m_mediaConfig.items()[ci].name));
         return;
@@ -654,8 +920,9 @@ void ConfigureModeScreen::deleteMedia(const QString& id) {
 
 // ---------- slots ------------------------------------------------------------
 
-void ConfigureModeScreen::onStateChanged(const QString& id, AppState) { updateRow(id); }
-void ConfigureModeScreen::onMediaStateChanged(const QString& id, MediaState) { updateMediaRow(id); }
+void ConfigureModeScreen::onAppStateChanged(const QString& id, AppState)         { updateAppRow(id); }
+void ConfigureModeScreen::onAndroidStateChanged(const QString& id, AndroidState) { updateAndroidRow(id); }
+void ConfigureModeScreen::onMediaStateChanged(const QString& id, MediaState)     { updateMediaRow(id); }
 
 void ConfigureModeScreen::onLogMessage(const QString& formatted) {
     m_logPanel->append(formatted);
@@ -667,7 +934,7 @@ void ConfigureModeScreen::onLogMessage(const QString& formatted) {
 void ConfigureModeScreen::setStageWindow(StageWindow* stage) {
     m_stageWindow = stage;
     if (!stage) return;
-    connect(stage, &StageWindow::activated,  this, &ConfigureModeScreen::updateStageStatus);
+    connect(stage, &StageWindow::activated,   this, &ConfigureModeScreen::updateStageStatus);
     connect(stage, &StageWindow::deactivated, this, &ConfigureModeScreen::updateStageStatus);
     loadStageConfig();
     updateStageStatus();
@@ -679,16 +946,12 @@ void ConfigureModeScreen::populateScreenCombo() {
     const auto screens = QGuiApplication::screens();
     for (int i = 0; i < screens.size(); ++i) {
         const QRect geo = screens[i]->geometry();
-        m_screenCombo->addItem(
-            QString("Pantalla %1: %2 (%3×%4)")
-                .arg(i + 1).arg(screens[i]->name())
-                .arg(geo.width()).arg(geo.height()));
+        m_screenCombo->addItem(QString("Pantalla %1: %2 (%3×%4)")
+            .arg(i + 1).arg(screens[i]->name()).arg(geo.width()).arg(geo.height()));
     }
     const int target = (saved >= 0 && saved < m_screenCombo->count())
-        ? saved
-        : m_screenCombo->count() - 1;
-    if (target >= 0)
-        m_screenCombo->setCurrentIndex(target);
+        ? saved : m_screenCombo->count() - 1;
+    if (target >= 0) m_screenCombo->setCurrentIndex(target);
 
     const bool multi = screens.size() > 1;
     m_screenCombo->setVisible(multi);
@@ -707,8 +970,7 @@ void ConfigureModeScreen::onActivateStage() {
 }
 
 void ConfigureModeScreen::updateStageStatus() {
-    if (QGuiApplication::screens().size() <= 1)
-        return;
+    if (QGuiApplication::screens().size() <= 1) return;
     const bool active = m_stageWindow && m_stageWindow->isActive();
     m_stageActivateBtn->setText(active ? "Desactivar" : "Activar");
     m_screenCombo->setEnabled(!active);
@@ -737,11 +999,11 @@ void ConfigureModeScreen::saveStageConfig(int screenIndex) {
     f.write(QJsonDocument(obj).toJson());
 }
 
+// ---------- events -----------------------------------------------------------
+
 void ConfigureModeScreen::keyPressEvent(QKeyEvent* event) {
     switch (event->key()) {
-        case Qt::Key_F10:
-            m_logPanel->setVisible(!m_logPanel->isVisible());
-            break;
+        case Qt::Key_F10:    m_logPanel->setVisible(!m_logPanel->isVisible()); break;
         case Qt::Key_Escape: emit returnToSelector(); break;
         case Qt::Key_2: case Qt::Key_Right: emit switchMode(1); break;
         case Qt::Key_3:                     emit switchMode(2); break;
@@ -755,4 +1017,5 @@ void ConfigureModeScreen::showEvent(QShowEvent* event) {
     populateScreenCombo();
     loadStageConfig();
     updateStageStatus();
+    m_adb->detectDevice();
 }

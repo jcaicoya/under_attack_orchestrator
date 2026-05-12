@@ -46,9 +46,7 @@ bool AppConfig::loadFromFile(const QString& path) {
         e.closePolicy            = o["closePolicy"].toString("terminateThenKill");
         e.expectedWindowTitle    = o["expectedWindowTitle"].toString();
         e.category               = o["category"].toString();
-        e.androidPackage         = o["androidPackage"].toString();
-        e.androidActivity        = o["androidActivity"].toString(".MainActivity");
-        e.androidWsPort          = static_cast<quint16>(o["androidWsPort"].toInt(0));
+        e.linkedAndroidId        = o["linkedAndroidId"].toString();
         m_apps.append(e);
     }
     return true;
@@ -68,11 +66,8 @@ bool AppConfig::saveToFile(const QString& path) const {
         o["closePolicy"]            = e.closePolicy;
         o["expectedWindowTitle"]    = e.expectedWindowTitle;
         o["category"]               = e.category;
-        if (!e.androidPackage.isEmpty()) {
-            o["androidPackage"]     = e.androidPackage;
-            o["androidActivity"]    = e.androidActivity;
-            o["androidWsPort"]      = e.androidWsPort;
-        }
+        if (!e.linkedAndroidId.isEmpty())
+            o["linkedAndroidId"]    = e.linkedAndroidId;
         appsArray.append(o);
     }
 

@@ -42,6 +42,34 @@ void AdbManager::detectDevice() {
     });
 }
 
+void AdbManager::testConnection() {
+    runAdb({"shell", "getprop", "ro.product.model"}, "test",
+           [this](int exitCode, const QString& out) {
+               const QString model = out.trimmed();
+               if (exitCode == 0 && !model.isEmpty()) {
+                   emit log(QString("Conexión OK — dispositivo: %1").arg(model));
+                   runAdb({"shell", "cmd", "vibrator", "vibrate", "500"}, "vibrate");
+                   // Sync label state in case orchestrator was restarted with device already connected.
+                   if (m_serial.isEmpty()) detectDevice();
+               } else {
+                   emit log("Conexión fallida — el dispositivo no responde.");
+                   if (!m_serial.isEmpty()) { m_serial.clear(); emit deviceLost(); }
+               }
+           });
+}
+
+void AdbManager::disconnectDevice() {
+    if (m_serial.isEmpty()) return;
+    const QString serial = m_serial;
+    m_serial.clear();
+    emit deviceLost();
+    // For WiFi connections, also tell adb to drop the TCP link.
+    if (serial.contains(':'))
+        runAdb({"disconnect", serial}, "disconnect " + serial);
+    else
+        emit log("USB device — unplug the cable to fully disconnect.");
+}
+
 void AdbManager::setupReverseTunnel(quint16 port) {
     const QString p = QString::number(port);
     runAdb({"reverse", "tcp:" + p, "tcp:" + p}, "reverse tcp:" + p);

@@ -7,6 +7,9 @@
 #include <QLabel>
 #include "AppConfig.h"
 #include "AppManager.h"
+#include "AndroidConfig.h"
+#include "AndroidManager.h"
+#include "AdbManager.h"
 #include "MediaConfig.h"
 #include "MediaManager.h"
 #include "StageWindow.h"
@@ -28,7 +31,8 @@ protected:
     void showEvent(QShowEvent* event) override;
 
 private slots:
-    void onStateChanged(const QString& id, AppState state);
+    void onAppStateChanged(const QString& id, AppState state);
+    void onAndroidStateChanged(const QString& id, AndroidState state);
     void onMediaStateChanged(const QString& id, MediaState state);
     void onLogMessage(const QString& formatted);
 
@@ -42,16 +46,28 @@ private:
     void loadStageConfig();
     void saveStageConfig(int screenIndex);
 
-    // Apps
-    void loadConfig();
-    void populateTable();
-    void updateRow(const QString& id);
-    int  rowForId(const QString& id) const;
-    int  configIndexForId(const QString& id) const;
+    // Qt apps
+    void loadAppsConfig();
+    void populateAppsTable();
+    void updateAppRow(const QString& id);
+    int  appRowForId(const QString& id) const;
+    int  appConfigIndexForId(const QString& id) const;
     void addApp();
     void editApp(const QString& id);
     void deleteApp(const QString& id);
-    void applyConfigChanges();
+    void applyAppsChanges();
+
+    // Android apps
+    void loadAndroidConfig();
+    void populateAndroidTable();
+    void updateAndroidRow(const QString& id);
+    int  androidRowForId(const QString& id) const;
+    int  androidConfigIndexForId(const QString& id) const;
+    void addAndroidApp();
+    void editAndroidApp(const QString& id);
+    void deleteAndroidApp(const QString& id);
+    void applyAndroidChanges();
+    bool showAndroidDialog(AndroidEntry& entry, const QString& title);
 
     // Media
     void loadMediaConfig();
@@ -70,19 +86,26 @@ private:
     StageWindow*  m_stageWindow       = nullptr;
     QComboBox*    m_screenCombo       = nullptr;
     QPushButton*  m_stageActivateBtn  = nullptr;
-    QString       m_configPath;
-    AppConfig     m_config;
-    AppManager*   m_manager           = nullptr;
 
+    // Qt apps
+    QString       m_appsConfigPath;
+    AppConfig     m_appsConfig;
+    AppManager*   m_appManager        = nullptr;
+    QTableWidget* m_appsTable         = nullptr;
+
+    // Android
+    QString         m_androidConfigPath;
+    AndroidConfig   m_androidConfig;
+    AdbManager*     m_adb             = nullptr;
+    AndroidManager* m_androidManager  = nullptr;
+    QLabel*         m_adbStatusLabel  = nullptr;
+    QTableWidget*   m_androidTable    = nullptr;
+
+    // Media
     QString       m_mediaConfigPath;
     MediaConfig   m_mediaConfig;
     MediaManager* m_mediaManager      = nullptr;
-
-    QTableWidget* m_table      = nullptr;
-    QPushButton*  m_addBtn     = nullptr;
-
-    QTableWidget* m_mediaTable = nullptr;
-    QPushButton*  m_addMediaBtn = nullptr;
+    QTableWidget* m_mediaTable        = nullptr;
 
     QTextEdit*    m_logPanel          = nullptr;
 };

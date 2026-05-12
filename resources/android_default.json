@@ -1,0 +1,19 @@
+{
+  "version": 1,
+  "apps": [
+    {
+      "id": "companion",
+      "name": "Companion",
+      "package": "com.cuarzopolar.companion",
+      "activity": ".MainActivity",
+      "wsPort": 8765
+    },
+    {
+      "id": "password-android",
+      "name": "Password Android",
+      "package": "com.cuarzopolar.password",
+      "activity": ".MainActivity",
+      "wsPort": 8767
+    }
+  ]
+}

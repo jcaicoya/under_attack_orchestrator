@@ -2,5 +2,6 @@
 <RCC version="1.0">
     <qresource prefix="/defaults">
         <file>resources/apps_default.json</file>
+        <file>resources/android_default.json</file>
     </qresource>
 </RCC>

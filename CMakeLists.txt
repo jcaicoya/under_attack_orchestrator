@@ -14,6 +14,8 @@ set(SOURCES
     src/main.cpp
     src/Logger.cpp
     src/AdbManager.cpp
+    src/AndroidConfig.cpp
+    src/AndroidManager.cpp
     src/AppConfig.cpp
     src/AppManager.cpp
     src/MediaConfig.cpp
@@ -33,6 +35,8 @@ set(SOURCES
 set(HEADERS
     src/Logger.h
     src/AdbManager.h
+    src/AndroidConfig.h
+    src/AndroidManager.h
     src/AppConfig.h
     src/AppManager.h
     src/MediaConfig.h
