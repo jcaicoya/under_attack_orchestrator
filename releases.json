@@ -83,6 +83,13 @@
       "date": "2026-05-15T16:44:44",
       "message": "Update CLAUDE.md and README.md: Android/ADB architecture docs",
       "zip": "bajo-ataque-orchestrator-v11.zip"
+    },
+    {
+      "version": 12,
+      "commit": "d2a1366",
+      "date": "2026-05-15T16:49:24",
+      "message": "Align orchestrator naming and packaging",
+      "zip": "bajo-ataque-orchestrator-v12.zip"
     }
   ]
 }
