@@ -118,6 +118,13 @@
       "date": "2026-05-16T17:36:38",
       "message": "Store Qt release archives at dist root",
       "zip": "orchestrator_v16.zip"
+    },
+    {
+      "version": 17,
+      "commit": "753116d",
+      "date": "2026-05-16T19:10:30",
+      "message": "Fix orchestrator temp zip copy step",
+      "zip": "orchestrator_v17.zip"
     }
   ]
 }
