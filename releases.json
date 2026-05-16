@@ -97,6 +97,13 @@
       "date": "2026-05-16T10:39:50",
       "message": "Rename orchestrator dist paths to underscore style",
       "zip": "bajo-ataque-orchestrator-v13.zip"
+    },
+    {
+      "version": 14,
+      "commit": "db0deae",
+      "date": "2026-05-16T14:12:54",
+      "message": "Publish releases directly to shared dist directories",
+      "zip": "bajo-ataque-orchestrator-v14.zip"
     }
   ]
 }
