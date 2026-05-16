@@ -9,7 +9,7 @@ namespace WorkspacePaths {
 inline QString findWorkspaceRoot(const QString& packageRoot) {
     QDir dir(QFileInfo(packageRoot).absoluteFilePath());
     for (int depth = 0; depth < 6; ++depth) {
-        if (dir.exists("dist-qt") || dir.exists("dist-android") || dir.exists("dist-multimedia"))
+        if (dir.exists("dist_qt") || dir.exists("dist_android") || dir.exists("dist_media"))
             return dir.absolutePath();
         if (!dir.cdUp())
             break;

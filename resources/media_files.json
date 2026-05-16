@@ -5,31 +5,31 @@
       "id": "animated_disguise",
       "name": "Animated Disguise",
       "type": "video",
-      "path": "dist-multimedia/animated_disguise.mp4"
+      "path": "dist_media/animated_disguise.mp4"
     },
     {
       "id": "bajo_ataque_trailer_01",
       "name": "Bajo Ataque Trailer 01",
       "type": "video",
-      "path": "dist-multimedia/bajo_ataque_trailer_01.mp4"
+      "path": "dist_media/bajo_ataque_trailer_01.mp4"
     },
     {
       "id": "cuarzito_super_hero",
       "name": "Cuarzito Super Hero",
       "type": "video",
-      "path": "dist-multimedia/cuarzito_super_hero.mp4"
+      "path": "dist_media/cuarzito_super_hero.mp4"
     },
     {
       "id": "flying_cuarzito",
       "name": "Flying Cuarzito",
       "type": "video",
-      "path": "dist-multimedia/flying_cuarzito.mp4"
+      "path": "dist_media/flying_cuarzito.mp4"
     },
     {
       "id": "tech_background",
       "name": "Tech Background",
       "type": "video",
-      "path": "dist-multimedia/tech_background.mp4"
+      "path": "dist_media/tech_background.mp4"
     }
   ]
 }

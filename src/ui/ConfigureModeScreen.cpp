@@ -516,7 +516,7 @@ void ConfigureModeScreen::applyAppsChanges() {
 }
 
 void ConfigureModeScreen::addApp() {
-    const QString startDir = WorkspacePaths::preferredWorkspaceChildDir(m_workspaceRoot, "dist-qt");
+    const QString startDir = WorkspacePaths::preferredWorkspaceChildDir(m_workspaceRoot, "dist_qt");
     QString exePath = QFileDialog::getOpenFileName(
         this, "Seleccionar ejecutable", startDir, "Executables (*.exe)");
     if (exePath.isEmpty()) return;
@@ -851,7 +851,7 @@ void ConfigureModeScreen::applyMediaChanges() {
 }
 
 void ConfigureModeScreen::addMedia() {
-    const QString startDir = WorkspacePaths::preferredWorkspaceChildDir(m_workspaceRoot, "dist-multimedia");
+    const QString startDir = WorkspacePaths::preferredWorkspaceChildDir(m_workspaceRoot, "dist_media");
     QString filePath = QFileDialog::getOpenFileName(
         this, "Seleccionar archivo multimedia", startDir,
         "Archivos multimedia (*.mp4 *.mov *.avi *.mkv *.webm *.mp3 *.wav *.ogg *.flac *.aac *.m4a)");
@@ -885,7 +885,7 @@ void ConfigureModeScreen::editMedia(const QString& id) {
 
     const MediaEntry& current = m_mediaConfig.items()[ci];
     QString startDir = QFileInfo(WorkspacePaths::absoluteFromWorkspace(m_workspaceRoot, current.path)).absolutePath();
-    if (!QFileInfo::exists(startDir)) startDir = WorkspacePaths::preferredWorkspaceChildDir(m_workspaceRoot, "dist-multimedia");
+    if (!QFileInfo::exists(startDir)) startDir = WorkspacePaths::preferredWorkspaceChildDir(m_workspaceRoot, "dist_media");
 
     QString filePath = QFileDialog::getOpenFileName(
         this, "Seleccionar archivo multimedia", startDir,
