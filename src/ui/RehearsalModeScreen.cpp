@@ -91,9 +91,9 @@ static const QString TABLE_STYLE = QStringLiteral(R"QSS(
         color: #8D96A3;
         border: none;
         border-bottom: 1px solid #293241;
-        padding: 6px 8px;
+        padding: 8px 10px;
         font-weight: 700;
-        font-size: 11px;
+        font-size: 12px;
         letter-spacing: 0.5px;
     }
 )QSS");
@@ -102,12 +102,13 @@ static QWidget* makeLaunchCell(QPushButton* demoBtn, QPushButton* liveBtn, QWidg
     auto* w = new QWidget(parent);
     w->setStyleSheet("background: transparent;");
     auto* lay = new QHBoxLayout(w);
-    lay->setContentsMargins(4, 3, 4, 3);
+    lay->setContentsMargins(2, 2, 2, 2);
     lay->setSpacing(6);
-    demoBtn->setMinimumSize(78, 32);
-    liveBtn->setMinimumSize(78, 32);
+    demoBtn->setMinimumSize(88, 36);
+    liveBtn->setMinimumSize(88, 36);
     lay->addWidget(demoBtn);
     lay->addWidget(liveBtn);
+    lay->addStretch();
     return w;
 }
 
@@ -194,12 +195,12 @@ void RehearsalModeScreen::buildUI() {
 
     m_table = new QTableWidget(0, 6, this);
     m_table->setHorizontalHeaderLabels({"", "Tipo", "Nombre", "Iniciar", "Parar", "Estado"});
-    m_table->horizontalHeader()->setSectionResizeMode(0, QHeaderView::Fixed); m_table->setColumnWidth(0, 52);
-    m_table->horizontalHeader()->setSectionResizeMode(1, QHeaderView::Fixed); m_table->setColumnWidth(1, 78);
-    m_table->horizontalHeader()->setSectionResizeMode(2, QHeaderView::Stretch);
-    m_table->horizontalHeader()->setSectionResizeMode(3, QHeaderView::Fixed); m_table->setColumnWidth(3, 180);
-    m_table->horizontalHeader()->setSectionResizeMode(4, QHeaderView::Fixed); m_table->setColumnWidth(4, 104);
-    m_table->horizontalHeader()->setSectionResizeMode(5, QHeaderView::Fixed); m_table->setColumnWidth(5, 130);
+    m_table->horizontalHeader()->setSectionResizeMode(0, QHeaderView::Fixed); m_table->setColumnWidth(0, 72);
+    m_table->horizontalHeader()->setSectionResizeMode(1, QHeaderView::Fixed); m_table->setColumnWidth(1, 92);
+    m_table->horizontalHeader()->setSectionResizeMode(2, QHeaderView::Fixed); m_table->setColumnWidth(2, 300);
+    m_table->horizontalHeader()->setSectionResizeMode(3, QHeaderView::Fixed); m_table->setColumnWidth(3, 220);
+    m_table->horizontalHeader()->setSectionResizeMode(4, QHeaderView::Fixed); m_table->setColumnWidth(4, 110);
+    m_table->horizontalHeader()->setSectionResizeMode(5, QHeaderView::Stretch);
     m_table->setSelectionMode(QAbstractItemView::NoSelection);
     m_table->setEditTriggers(QAbstractItemView::NoEditTriggers);
     m_table->setFocusPolicy(Qt::NoFocus);
@@ -207,6 +208,7 @@ void RehearsalModeScreen::buildUI() {
     m_table->setShowGrid(false);
     m_table->setSortingEnabled(false);
     m_table->setStyleSheet(TABLE_STYLE);
+    m_table->horizontalHeader()->setDefaultAlignment(Qt::AlignLeft | Qt::AlignVCenter);
     root->addWidget(m_table, 2);
 
     auto* androidRow = new QHBoxLayout();
@@ -383,17 +385,18 @@ void RehearsalModeScreen::populateTable() {
         arrowWidget->setStyleSheet("background: transparent;");
         auto* arrowLay = new QHBoxLayout(arrowWidget);
         arrowLay->setContentsMargins(2, 2, 2, 2);
-        arrowLay->setSpacing(2);
+        arrowLay->setSpacing(4);
         auto* upBtn   = new QPushButton("▲", this);
         auto* downBtn = new QPushButton("▼", this);
-        upBtn->setFixedSize(22, 28);   downBtn->setFixedSize(22, 28);
+        upBtn->setFixedSize(28, 34);   downBtn->setFixedSize(28, 34);
         upBtn->setFocusPolicy(Qt::NoFocus);   downBtn->setFocusPolicy(Qt::NoFocus);
         upBtn->setEnabled(row > 0);
         downBtn->setEnabled(row < items.size() - 1);
-        upBtn->setStyleSheet("QPushButton { font-size: 9px; padding: 0; }");
-        downBtn->setStyleSheet("QPushButton { font-size: 9px; padding: 0; }");
+        upBtn->setStyleSheet("QPushButton { font-size: 11px; padding: 0; }");
+        downBtn->setStyleSheet("QPushButton { font-size: 11px; padding: 0; }");
         arrowLay->addWidget(upBtn);
         arrowLay->addWidget(downBtn);
+        arrowLay->addStretch();
         m_table->setCellWidget(row, 0, arrowWidget);
 
         connect(upBtn, &QPushButton::clicked, this, [this, row]() {
@@ -418,7 +421,7 @@ void RehearsalModeScreen::populateTable() {
         }
         auto* typeItem = new QTableWidgetItem(typeStr);
         typeItem->setForeground(typeColor);
-        typeItem->setTextAlignment(Qt::AlignCenter);
+        typeItem->setTextAlignment(Qt::AlignVCenter | Qt::AlignLeft);
         m_table->setItem(row, 1, typeItem);
 
         // Col 2: Nombre
@@ -432,6 +435,7 @@ void RehearsalModeScreen::populateTable() {
         }
         auto* nameItem = new QTableWidgetItem(name);
         nameItem->setForeground(CyberTheme::color(CyberTheme::TextPrimary));
+        nameItem->setTextAlignment(Qt::AlignVCenter | Qt::AlignLeft);
         m_table->setItem(row, 2, nameItem);
 
         // Col 3: Iniciar
@@ -460,6 +464,7 @@ void RehearsalModeScreen::populateTable() {
         // Col 4: Parar
         auto* stopBtn = new QPushButton("Parar", this);
         stopBtn->setFocusPolicy(Qt::NoFocus);
+        stopBtn->setMinimumSize(88, 36);
         stopBtn->setEnabled(false);
         m_table->setCellWidget(row, 4, stopBtn);
         connect(stopBtn, &QPushButton::clicked, this, [this, ref, type]() {
@@ -473,7 +478,7 @@ void RehearsalModeScreen::populateTable() {
         stateItem->setForeground(CyberTheme::color(CyberTheme::TextMuted));
         m_table->setItem(row, 5, stateItem);
 
-        m_table->setRowHeight(row, 44);
+        m_table->setRowHeight(row, 52);
         updateRow(row);
     }
 }
@@ -511,6 +516,7 @@ void RehearsalModeScreen::updateRow(int row) {
     if (auto* si = m_table->item(row, 5)) {
         si->setText(stateLabel);
         si->setForeground(stateColor);
+        si->setTextAlignment(Qt::AlignVCenter | Qt::AlignLeft);
     }
     setCellButtonsEnabled(m_table, row, 3, canAction);
     if (auto* b = qobject_cast<QPushButton*>(m_table->cellWidget(row, 4))) b->setEnabled(canStop);

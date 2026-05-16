@@ -139,15 +139,26 @@ void MediaManager::play(const QString& id) {
             rt.videoWidget->show();
             rt.videoWidget->raise();
         } else {
-            // Fallback: floating window for testing without a stage screen
+            // Fallback: fullscreen on the primary screen for single-screen rehearsal.
             if (!rt.videoWidget) {
                 rt.videoWidget = new QVideoWidget();
-                rt.videoWidget->setWindowTitle(entry.name);
+                rt.videoWidget->setWindowFlags(
+                    Qt::Window | Qt::FramelessWindowHint | Qt::WindowStaysOnTopHint);
+                rt.videoWidget->setStyleSheet("background: black;");
                 rt.videoWidget->setAttribute(Qt::WA_DeleteOnClose, false);
-                rt.videoWidget->resize(854, 480);
-                rt.player->setVideoOutput(rt.videoWidget);
             }
-            rt.videoWidget->show();
+            QScreen* primary = QGuiApplication::primaryScreen();
+            if (primary) {
+                rt.videoWidget->winId();
+                if (rt.videoWidget->windowHandle())
+                    rt.videoWidget->windowHandle()->setScreen(primary);
+                rt.videoWidget->setGeometry(primary->geometry());
+                rt.videoWidget->showFullScreen();
+            } else {
+                rt.videoWidget->resize(1280, 720);
+                rt.videoWidget->show();
+            }
+            rt.player->setVideoOutput(rt.videoWidget);
             rt.videoWidget->raise();
         }
     }
