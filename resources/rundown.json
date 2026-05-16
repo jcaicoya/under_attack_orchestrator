@@ -1,0 +1,26 @@
+[
+    {
+        "ref": "CuarzoPolar_BajoAtaque_Trailer_01",
+        "type": "media"
+    },
+    {
+        "ref": "permission",
+        "type": "app"
+    },
+    {
+        "ref": "disfraz-animado",
+        "type": "media"
+    },
+    {
+        "ref": "qr",
+        "type": "app"
+    },
+    {
+        "ref": "wifi",
+        "type": "app"
+    },
+    {
+        "ref": "password",
+        "type": "app"
+    }
+]
