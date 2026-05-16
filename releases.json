@@ -90,6 +90,13 @@
       "date": "2026-05-15T16:49:24",
       "message": "Align orchestrator naming and packaging",
       "zip": "bajo-ataque-orchestrator-v12.zip"
+    },
+    {
+      "version": 13,
+      "commit": "af169d7",
+      "date": "2026-05-16T10:39:50",
+      "message": "Rename orchestrator dist paths to underscore style",
+      "zip": "bajo-ataque-orchestrator-v13.zip"
     }
   ]
 }
