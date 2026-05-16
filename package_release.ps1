@@ -138,7 +138,7 @@ Write-Host ">> Creating zip..."
 if (-not (Test-Path $distRoot)) { New-Item -ItemType Directory -Path $distRoot | Out-Null }
 if (Test-Path $packageDir) {
     Get-ChildItem -LiteralPath $packageDir -Force |
-        Where-Object { $_.Name -ne "config" } |
+        Where-Object { $_.Name -notin @("config", "logs") } |
         Remove-Item -Recurse -Force
 } else {
     New-Item -ItemType Directory -Path $packageDir | Out-Null
