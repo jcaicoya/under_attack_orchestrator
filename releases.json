@@ -104,6 +104,13 @@
       "date": "2026-05-16T14:12:54",
       "message": "Publish releases directly to shared dist directories",
       "zip": "bajo-ataque-orchestrator-v14.zip"
+    },
+    {
+      "version": 15,
+      "commit": "4006874",
+      "date": "2026-05-16T14:14:13",
+      "message": "Polish rehearsal layout and single-screen video playback",
+      "zip": "bajo-ataque-orchestrator-v15.zip"
     }
   ]
 }
