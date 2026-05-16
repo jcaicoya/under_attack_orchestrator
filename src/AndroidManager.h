@@ -4,7 +4,7 @@
 #include "AndroidConfig.h"
 #include "AdbManager.h"
 
-enum class AndroidState { Stopped, Running };
+enum class AndroidState { Stopped, Foreground, Background };
 
 class AndroidManager : public QObject {
     Q_OBJECT
@@ -15,6 +15,8 @@ public:
 
     void start(const QString& id);
     void stop(const QString& id);
+    void bringToFront(const QString& id);
+    void sendToBackground(const QString& id);
     void stopAll();
 
     AndroidState               state(const QString& id) const;

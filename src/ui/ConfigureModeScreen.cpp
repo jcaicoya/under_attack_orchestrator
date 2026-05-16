@@ -51,16 +51,18 @@ static QColor appStateColor(AppState s) {
 
 static QString androidStateLabel(AndroidState s) {
     switch (s) {
-        case AndroidState::Stopped: return "PARADA";
-        case AndroidState::Running: return "EN MARCHA";
+        case AndroidState::Stopped:    return "PARADA";
+        case AndroidState::Foreground: return "EN PRIMER PLANO";
+        case AndroidState::Background: return "EN SEGUNDO PLANO";
     }
     return {};
 }
 
 static QColor androidStateColor(AndroidState s) {
     switch (s) {
-        case AndroidState::Stopped: return CyberTheme::color(CyberTheme::TextMuted);
-        case AndroidState::Running: return CyberTheme::color(CyberTheme::AccentGreen);
+        case AndroidState::Stopped:    return CyberTheme::color(CyberTheme::TextMuted);
+        case AndroidState::Foreground: return CyberTheme::color(CyberTheme::AccentGreen);
+        case AndroidState::Background: return CyberTheme::color(CyberTheme::Warning);
     }
     return {};
 }
@@ -667,9 +669,9 @@ void ConfigureModeScreen::updateAndroidRow(const QString& id) {
         item->setText(androidStateLabel(s));
         item->setForeground(androidStateColor(s));
     }
-    bool running = (s == AndroidState::Running);
-    if (auto* b = qobject_cast<QPushButton*>(m_androidTable->cellWidget(row, 1))) b->setEnabled(!running);
-    if (auto* b = qobject_cast<QPushButton*>(m_androidTable->cellWidget(row, 2))) b->setEnabled(running);
+    bool stopped = (s == AndroidState::Stopped);
+    if (auto* b = qobject_cast<QPushButton*>(m_androidTable->cellWidget(row, 1))) b->setEnabled(stopped);
+    if (auto* b = qobject_cast<QPushButton*>(m_androidTable->cellWidget(row, 2))) b->setEnabled(!stopped);
 }
 
 // ---------- Android: CRUD ----------------------------------------------------

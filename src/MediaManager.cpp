@@ -108,10 +108,11 @@ void MediaManager::play(const QString& id) {
     }
 
     if (entry.type == "video") {
-        const bool wantStage   = !m_stageGeometry.isEmpty();
-        // Detect if existing widget was created for the other mode
+        const bool wantStage = !m_stageGeometry.isEmpty();
+        // Recreate the window if we switch between stage playback and single-screen rehearsal,
+        // because they use different top-level flags.
         const bool hasStageWgt = rt.videoWidget &&
-                                  (rt.videoWidget->windowFlags() & Qt::FramelessWindowHint);
+                                 (rt.videoWidget->windowFlags() & Qt::WindowStaysOnTopHint);
         if (rt.videoWidget && wantStage != bool(hasStageWgt)) {
             rt.videoWidget->close();
             delete rt.videoWidget;
@@ -142,8 +143,7 @@ void MediaManager::play(const QString& id) {
             // Fallback: fullscreen on the primary screen for single-screen rehearsal.
             if (!rt.videoWidget) {
                 rt.videoWidget = new QVideoWidget();
-                rt.videoWidget->setWindowFlags(
-                    Qt::Window | Qt::FramelessWindowHint | Qt::WindowStaysOnTopHint);
+                rt.videoWidget->setWindowFlags(Qt::Window | Qt::FramelessWindowHint);
                 rt.videoWidget->setStyleSheet("background: black;");
                 rt.videoWidget->setAttribute(Qt::WA_DeleteOnClose, false);
             }

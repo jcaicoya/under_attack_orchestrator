@@ -15,6 +15,8 @@ public:
     void testConnection();
     void setupReverseTunnel(quint16 port);
     void launchApp(const QString& package, const QString& activity);
+    void bringAppToFront(const QString& package, const QString& activity);
+    void sendAppToBackground();
     void stopApp(const QString& package);
 
     bool    hasDevice() const { return !m_serial.isEmpty(); }

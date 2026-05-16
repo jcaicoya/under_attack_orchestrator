@@ -29,7 +29,7 @@ void AndroidManager::start(const QString& id) {
     if (it->wsPort > 0)
         m_adb->setupReverseTunnel(it->wsPort);
     m_adb->launchApp(it->package, it->activity);
-    setState(id, AndroidState::Running);
+    setState(id, AndroidState::Foreground);
 }
 
 void AndroidManager::stop(const QString& id) {
@@ -40,6 +40,29 @@ void AndroidManager::stop(const QString& id) {
     emit logMessage(QString("Stopping Android: %1").arg(it->name));
     m_adb->stopApp(it->package);
     setState(id, AndroidState::Stopped);
+}
+
+void AndroidManager::bringToFront(const QString& id) {
+    auto it = std::find_if(m_entries.begin(), m_entries.end(),
+                           [&](const AndroidEntry& e) { return e.id == id; });
+    if (it == m_entries.end()) return;
+
+    emit logMessage(QString("Bringing Android to foreground: %1").arg(it->name));
+    if (it->wsPort > 0)
+        m_adb->setupReverseTunnel(it->wsPort);
+    m_adb->bringAppToFront(it->package, it->activity);
+    setState(id, AndroidState::Foreground);
+}
+
+void AndroidManager::sendToBackground(const QString& id) {
+    auto it = std::find_if(m_entries.begin(), m_entries.end(),
+                           [&](const AndroidEntry& e) { return e.id == id; });
+    if (it == m_entries.end()) return;
+    if (state(id) == AndroidState::Stopped) return;
+
+    emit logMessage(QString("Sending Android to background: %1").arg(it->name));
+    m_adb->sendAppToBackground();
+    setState(id, AndroidState::Background);
 }
 
 void AndroidManager::stopAll() {

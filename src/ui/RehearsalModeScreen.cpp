@@ -43,16 +43,18 @@ static QColor appStateColor(AppState s) {
 
 static QString androidStateLabel(AndroidState s) {
     switch (s) {
-        case AndroidState::Stopped: return "PARADA";
-        case AndroidState::Running: return "EN MARCHA";
+        case AndroidState::Stopped:    return "PARADA";
+        case AndroidState::Foreground: return "EN PRIMER PLANO";
+        case AndroidState::Background: return "EN SEGUNDO PLANO";
     }
     return {};
 }
 
 static QColor androidStateColor(AndroidState s) {
     switch (s) {
-        case AndroidState::Stopped: return CyberTheme::color(CyberTheme::TextMuted);
-        case AndroidState::Running: return CyberTheme::color(CyberTheme::AccentGreen);
+        case AndroidState::Stopped:    return CyberTheme::color(CyberTheme::TextMuted);
+        case AndroidState::Foreground: return CyberTheme::color(CyberTheme::AccentGreen);
+        case AndroidState::Background: return CyberTheme::color(CyberTheme::Warning);
     }
     return {};
 }
@@ -193,14 +195,16 @@ void RehearsalModeScreen::buildUI() {
     rundownLabel->setObjectName("FieldLabel");
     root->addWidget(rundownLabel);
 
-    m_table = new QTableWidget(0, 6, this);
-    m_table->setHorizontalHeaderLabels({"", "Tipo", "Nombre", "Iniciar", "Parar", "Estado"});
+    m_table = new QTableWidget(0, 8, this);
+    m_table->setHorizontalHeaderLabels({"", "Tipo", "Nombre", "Iniciar", "Parar", "Al frente", "Detrás", "Estado"});
     m_table->horizontalHeader()->setSectionResizeMode(0, QHeaderView::Fixed); m_table->setColumnWidth(0, 72);
     m_table->horizontalHeader()->setSectionResizeMode(1, QHeaderView::Fixed); m_table->setColumnWidth(1, 92);
-    m_table->horizontalHeader()->setSectionResizeMode(2, QHeaderView::Fixed); m_table->setColumnWidth(2, 300);
+    m_table->horizontalHeader()->setSectionResizeMode(2, QHeaderView::Fixed); m_table->setColumnWidth(2, 270);
     m_table->horizontalHeader()->setSectionResizeMode(3, QHeaderView::Fixed); m_table->setColumnWidth(3, 220);
-    m_table->horizontalHeader()->setSectionResizeMode(4, QHeaderView::Fixed); m_table->setColumnWidth(4, 110);
-    m_table->horizontalHeader()->setSectionResizeMode(5, QHeaderView::Stretch);
+    m_table->horizontalHeader()->setSectionResizeMode(4, QHeaderView::Fixed); m_table->setColumnWidth(4, 126);
+    m_table->horizontalHeader()->setSectionResizeMode(5, QHeaderView::Fixed); m_table->setColumnWidth(5, 120);
+    m_table->horizontalHeader()->setSectionResizeMode(6, QHeaderView::Fixed); m_table->setColumnWidth(6, 110);
+    m_table->horizontalHeader()->setSectionResizeMode(7, QHeaderView::Stretch);
     m_table->setSelectionMode(QAbstractItemView::NoSelection);
     m_table->setEditTriggers(QAbstractItemView::NoEditTriggers);
     m_table->setFocusPolicy(Qt::NoFocus);
@@ -449,20 +453,34 @@ void RehearsalModeScreen::populateTable() {
             m_table->setCellWidget(row, 3, makeLaunchCell(demoBtn, liveBtn, this));
             connect(demoBtn, &QPushButton::clicked, this, [this, ref]() { m_appManager->start(ref, AppLaunchMode::Demo); });
             connect(liveBtn, &QPushButton::clicked, this, [this, ref]() { m_appManager->start(ref, AppLaunchMode::Live); });
+            m_table->setCellWidget(row, 5, new QWidget(this));
+            m_table->setCellWidget(row, 6, new QWidget(this));
         } else if (type == "android") {
-            auto* actionBtn = new QPushButton("Lanzar", this);
-            actionBtn->setFocusPolicy(Qt::NoFocus);
-            m_table->setCellWidget(row, 3, actionBtn);
-            connect(actionBtn, &QPushButton::clicked, this, [this, ref]() { m_androidManager->start(ref); });
+            auto* launchBtn = new QPushButton("Lanzar", this);
+            auto* frontBtn  = new QPushButton("Al frente", this);
+            auto* backBtn   = new QPushButton("Detrás", this);
+            launchBtn->setFocusPolicy(Qt::NoFocus);
+            frontBtn->setFocusPolicy(Qt::NoFocus);
+            backBtn->setFocusPolicy(Qt::NoFocus);
+            frontBtn->setMinimumSize(98, 36);
+            backBtn->setMinimumSize(88, 36);
+            m_table->setCellWidget(row, 3, launchBtn);
+            m_table->setCellWidget(row, 5, frontBtn);
+            m_table->setCellWidget(row, 6, backBtn);
+            connect(launchBtn, &QPushButton::clicked, this, [this, ref]() { m_androidManager->start(ref); });
+            connect(frontBtn,  &QPushButton::clicked, this, [this, ref]() { m_androidManager->bringToFront(ref); });
+            connect(backBtn,   &QPushButton::clicked, this, [this, ref]() { m_androidManager->sendToBackground(ref); });
         } else {
             auto* actionBtn = new QPushButton("Iniciar", this);
             actionBtn->setFocusPolicy(Qt::NoFocus);
             m_table->setCellWidget(row, 3, actionBtn);
             connect(actionBtn, &QPushButton::clicked, this, [this, ref]() { m_mediaManager->play(ref); });
+            m_table->setCellWidget(row, 5, new QWidget(this));
+            m_table->setCellWidget(row, 6, new QWidget(this));
         }
 
         // Col 4: Parar
-        auto* stopBtn = new QPushButton("Parar", this);
+        auto* stopBtn = new QPushButton(type == "android" ? "Forzar cierre" : "Parar", this);
         stopBtn->setFocusPolicy(Qt::NoFocus);
         stopBtn->setMinimumSize(88, 36);
         stopBtn->setEnabled(false);
@@ -473,10 +491,10 @@ void RehearsalModeScreen::populateTable() {
             else                        m_mediaManager->stop(ref);
         });
 
-        // Col 5: Estado
+        // Col 7: Estado
         auto* stateItem = new QTableWidgetItem("LISTA");
         stateItem->setForeground(CyberTheme::color(CyberTheme::TextMuted));
-        m_table->setItem(row, 5, stateItem);
+        m_table->setItem(row, 7, stateItem);
 
         m_table->setRowHeight(row, 52);
         updateRow(row);
@@ -493,6 +511,9 @@ void RehearsalModeScreen::updateRow(int row) {
     bool    canAction = false;
     bool    canStop   = false;
 
+    bool canFront = false;
+    bool canBack  = false;
+
     if (item.type == "app") {
         AppState s = m_appManager->state(item.ref);
         stateLabel = appStateLabel(s);
@@ -504,7 +525,9 @@ void RehearsalModeScreen::updateRow(int row) {
         stateLabel = androidStateLabel(s);
         stateColor = androidStateColor(s);
         canAction  = (s == AndroidState::Stopped);
-        canStop    = (s == AndroidState::Running);
+        canStop    = (s != AndroidState::Stopped);
+        canFront   = (s != AndroidState::Foreground);
+        canBack    = (s == AndroidState::Foreground);
     } else {
         MediaState s = m_mediaManager->state(item.ref);
         stateLabel = mediaStateLabel(s);
@@ -513,13 +536,15 @@ void RehearsalModeScreen::updateRow(int row) {
         canStop    = (s == MediaState::Playing);
     }
 
-    if (auto* si = m_table->item(row, 5)) {
+    if (auto* si = m_table->item(row, 7)) {
         si->setText(stateLabel);
         si->setForeground(stateColor);
         si->setTextAlignment(Qt::AlignVCenter | Qt::AlignLeft);
     }
     setCellButtonsEnabled(m_table, row, 3, canAction);
     if (auto* b = qobject_cast<QPushButton*>(m_table->cellWidget(row, 4))) b->setEnabled(canStop);
+    if (auto* b = qobject_cast<QPushButton*>(m_table->cellWidget(row, 5))) b->setEnabled(canFront);
+    if (auto* b = qobject_cast<QPushButton*>(m_table->cellWidget(row, 6))) b->setEnabled(canBack);
 }
 
 int RehearsalModeScreen::rowForRef(const QString& type, const QString& id) const {

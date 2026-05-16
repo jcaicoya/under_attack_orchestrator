@@ -80,6 +80,15 @@ void AdbManager::launchApp(const QString& package, const QString& activity) {
            "launch " + package);
 }
 
+void AdbManager::bringAppToFront(const QString& package, const QString& activity) {
+    runAdb({"shell", "am", "start", "-n", package + "/" + activity},
+           "foreground " + package);
+}
+
+void AdbManager::sendAppToBackground() {
+    runAdb({"shell", "input", "keyevent", "KEYCODE_HOME"}, "background");
+}
+
 void AdbManager::stopApp(const QString& package) {
     runAdb({"shell", "am", "force-stop", package}, "stop " + package);
 }
@@ -97,7 +106,19 @@ void AdbManager::runAdb(const QStringList& args, const QString& label,
                 if (onDone) onDone(exitCode, out);
                 proc->deleteLater();
             });
-    proc->start(adbExe(), args);
+    QStringList finalArgs = args;
+    if (!m_serial.isEmpty() && !args.isEmpty()) {
+        const QString cmd = args.first();
+        const bool isGlobalCommand =
+            (cmd == "devices") ||
+            (cmd == "connect") ||
+            (cmd == "disconnect");
+        if (!isGlobalCommand) {
+            finalArgs.prepend(m_serial);
+            finalArgs.prepend("-s");
+        }
+    }
+    proc->start(adbExe(), finalArgs);
     if (!proc->waitForStarted(2000)) {
         emit log("ERROR: adb not found. Expected at " + kSdkAdb);
         proc->deleteLater();
