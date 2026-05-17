@@ -125,6 +125,13 @@
       "date": "2026-05-16T19:10:30",
       "message": "Fix orchestrator temp zip copy step",
       "zip": "orchestrator_v17.zip"
+    },
+    {
+      "version": 18,
+      "commit": "c216f1f",
+      "date": "2026-05-17T11:58:28",
+      "message": "Standardize project docs and package runbook",
+      "zip": "orchestrator_v18.zip"
     }
   ]
 }
